@@ -1,143 +1,117 @@
-# Crane Camera Simulation — Windows Setup
+# Crane Camera — Operator Interface
 
-Simulates the full pipeline on a single Windows PC:
+Web-based operator GUI for viewing a live camera stream and sending PTZ commands.
 
 ```
-[FFmpeg test stream] → [MediaMTX] → [WebRTC] → [Operator HTML page]
-                                         ↑
-                              [PTZ mock server (Python)]
+[RTSP camera / source] → [MediaMTX] → [WebRTC] → [operator.html]
+                                                         ↓
+                                              [PTZ HTTP endpoint]
 ```
-
-No hardware needed. Everything runs locally.
 
 ---
 
-## 1. Install prerequisites (one-time)
+## Files
 
-### FFmpeg
-Download the Windows build from https://www.gyan.dev/ffmpeg/builds/
-Get the "release essentials" zip, extract it, and add the `bin\` folder to your PATH.
+| File | Purpose |
+|------|---------|
+| `operator.html` | Operator GUI — WebRTC video, PTZ d-pad, zoom, presets, event log |
+| `mediamtx.yml`  | MediaMTX config — low-latency WebRTC relay for an RTSP source |
 
-Or with winget:
-```
-winget install Gyan.FFmpeg
-```
+---
 
-Verify:
-```
-ffmpeg -version
-```
+## Prerequisites
 
-### MediaMTX
+### MediaMTX (WebRTC relay)
+
+Required if your camera outputs RTSP and the browser needs WebRTC.
+
 Download the Windows zip from:
 https://github.com/bluenviron/mediamtx/releases/latest
 
 Look for: `mediamtx_vX.X.X_windows_amd64.zip`
 
-Extract it into this folder (next to this README). You should have:
-```
-sim\
-  mediamtx.exe
-  mediamtx.yml    ← our custom config (included)
-  README.md
-  start_sim.bat
-  ptz_mock.py
-  operator.html
-```
+Extract `mediamtx.exe` into this folder (next to `mediamtx.yml`).
 
 Or with winget:
 ```
 winget install bluenviron.mediamtx
 ```
-(If installed via winget, mediamtx.exe will be in your PATH — the .bat script handles both cases.)
-
-### Python (for the PTZ mock server)
-Python 3.8 or newer. Download from https://www.python.org/downloads/
-Make sure "Add Python to PATH" is checked during install.
-
-Verify:
-```
-python --version
-```
 
 ---
 
-## 2. Start the simulation
+## Setup
 
-Double-click `start_sim.bat` — it opens three terminal windows:
-
-| Window | What it does |
-|--------|--------------|
-| MediaMTX | Receives RTSP from FFmpeg, serves WebRTC to browser |
-| FFmpeg  | Generates a 1080p test pattern with live clock (fake camera) |
-| PTZ Mock | Receives PTZ commands from the operator page, prints them |
-
-Wait about 5 seconds for everything to start, then open the operator page:
+### 1. Start MediaMTX
 
 ```
-operator.html   ← open this in Chrome or Edge (double-click or drag to browser)
+mediamtx mediamtx.yml
 ```
+
+MediaMTX listens on:
+- **8554** — RTSP input
+- **8889** — WebRTC output (WHEP)
+
+### 2. Push your RTSP stream into MediaMTX
+
+Point your camera or FFmpeg at:
+```
+rtsp://localhost:8554/crane
+```
+
+Example with FFmpeg (test pattern):
+```
+ffmpeg -re -f lavfi -i testsrc2=size=1920x1080:rate=30 \
+  -c:v libx264 -preset ultrafast -tune zerolatency \
+  -b:v 4000k -g 30 -f rtsp -rtsp_transport tcp rtsp://localhost:8554/crane
+```
+
+### 3. Open the operator page
+
+Open `operator.html` in Chrome or Edge (double-click or drag to browser).
+
+In the **Connection** panel, set:
+- **MediaMTX host** — IP of the machine running MediaMTX (default `192.168.1.147`)
+- **Stream path** — RTSP path (default `crane`)
+- **PTZ server host** — `host:port` of your PTZ HTTP endpoint (default `localhost:5000`)
+
+Click **CONNECT**.
 
 ---
 
-## 3. What you should see
+## PTZ API
 
-- Live video (colour test pattern with timestamp) playing in the browser
-- PTZ control buttons on the right panel
-- When you click a PTZ button, the PTZ Mock terminal prints the command
-- Latency counter in the top bar (end-to-end, measured by timestamp difference)
+The GUI sends HTTP GET requests to:
+```
+http://<PTZ_HOST>/ptz?cmd=<command>&speed=<1-100>
+```
+
+Commands: `pan_left`, `pan_right`, `tilt_up`, `tilt_down`, `zoom_in`, `zoom_out`, `stop`, `preset_home`
+
+The PTZ endpoint must respond with HTTP 200 on success. Response body is ignored.
 
 ---
 
-## 4. Using a real video file instead of the test pattern
+## Keyboard shortcuts
 
-Edit `start_sim.bat` and find the FFmpeg line. Replace:
-
-```
--f lavfi -i "testsrc2=size=1920x1080:rate=30,drawtext=..."
-```
-
-With:
-
-```
--re -stream_loop -1 -i "C:\path\to\your\video.mp4"
-```
+| Key | Action |
+|-----|--------|
+| Arrow keys / WASD | Pan / tilt |
+| `+` / `-` | Zoom in / out |
+| Space | Stop |
+| `H` | Home preset |
 
 ---
 
-## 5. Simulating bad 5G conditions
+## Two-machine setup (camera PC vs operator PC)
 
-Download Clumsy (free Windows network emulator):
-https://jagt.github.io/clumsy/
-
-Run it and apply to loopback traffic:
-- Lag: 80ms (simulates 5G round-trip)
-- Drop: 1–2% (simulates mobile packet loss)
-- Throttle: to simulate bandwidth limits
-
-Watch whether the WebRTC stream in the browser degrades gracefully.
+Run MediaMTX on the camera PC. Open `operator.html` on the operator PC and set **MediaMTX host** to the camera PC's IP address.
 
 ---
 
-## 6. Testing across two PCs (simulates Jetson vs operator station)
+## Ports
 
-Run MediaMTX + FFmpeg on PC A (the "Jetson").
-Open operator.html on PC B, but change the server address in the page:
-
-In operator.html, find:
-```javascript
-const MEDIAMTX_HOST = "localhost";
-```
-Change it to PC A's local IP address.
-
----
-
-## Ports used
-
-| Port  | Service                  |
-|-------|--------------------------|
-| 8554  | RTSP (FFmpeg → MediaMTX) |
-| 8889  | WebRTC (MediaMTX → browser) |
-| 5000  | PTZ mock HTTP server     |
-
-Make sure Windows Firewall allows these if testing across two machines.
+| Port | Service |
+|------|---------|
+| 8554 | RTSP (camera → MediaMTX) |
+| 8889 | WebRTC (MediaMTX → browser) |
+| 5000 | PTZ HTTP endpoint (default, configurable in GUI) |
