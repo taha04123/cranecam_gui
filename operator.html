@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crane Camera — Operator Interface</title>
+  <style>
+    /* ── Variables ─────────────────────────────────────────── */
+    :root {
+      --bg:         #0d0f12;
+      --panel:      #13161b;
+      --border:     #1e2530;
+      --border-hi:  #2e3a4a;
+      --accent:     #00aaff;
+      --accent-dim: #005580;
+      --warn:       #ff6b00;
+      --ok:         #00cc66;
+      --text:       #c8d4e0;
+      --text-dim:   #5a6a7a;
+      --btn:        #1a2030;
+      --btn-hover:  #1e2840;
+      --btn-active: #00aaff22;
+      --font-mono:  'Courier New', 'Lucida Console', monospace;
+      --font-ui:    'Segoe UI', system-ui, sans-serif;
+    }
+
+    /* ── Reset ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── Top bar ───────────────────────────────────────────── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 0 16px;
+      height: 42px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #topbar .logo {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    #topbar .logo span { color: var(--text-dim); font-weight: 400; }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+    }
+
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      transition: background 0.3s;
+    }
+    .dot.ok     { background: var(--ok);   box-shadow: 0 0 6px var(--ok); }
+    .dot.warn   { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+    .dot.err    { background: #ff3333;     box-shadow: 0 0 6px #ff3333; }
+
+    .status-pill .label { color: var(--text-dim); }
+    .status-pill .value { color: var(--text); }
+
+    #topbar .spacer { flex: 1; }
+
+    #latency-display {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    #latency-display .ms { color: var(--ok); font-size: 13px; font-weight: 700; }
+
+    /* ── Main layout ───────────────────────────────────────── */
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Video panel ───────────────────────────────────────── */
+    #video-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #000;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #stream {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Overlay shown when stream is disconnected */
+    #video-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: #000c;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    #video-overlay .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border-hi);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #video-overlay p { font-family: var(--font-mono); }
+
+    /* Corner info stamp */
+    #stamp {
+      position: absolute;
+      bottom: 10px; left: 12px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: #ffffff55;
+      line-height: 1.6;
+      pointer-events: none;
+    }
+
+    /* ── Right panel ───────────────────────────────────────── */
+    #right-panel {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .section {
+      border-bottom: 1px solid var(--border);
+      padding: 14px 14px 16px;
+    }
+
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+
+    /* ── PTZ D-pad ─────────────────────────────────────────── */
+    .dpad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 5px;
+      width: 140px;
+      margin: 0 auto;
+    }
+
+    .dpad-btn {
+      background: var(--btn);
+      border: 1px solid var(--border-hi);
+      border-radius: 4px;
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 42px;
+      font-size: 18px;
+      transition: background 0.1s, border-color 0.1s, transform 0.08s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .dpad-btn:hover  { background: var(--btn-hover); border-color: var(--accent-dim); }
+    .dpad-btn:active { background: var(--btn-active); border-color: var(--accent); transform: scale(0.94); }
+    .dpad-btn.center { font-size: 11px; color: var(--text-dim); }
+    .dpad-btn.empty  { visibility: hidden; pointer-events: none; }
+
+    /* ── Zoom buttons ──────────────────────────────────────── */
+    .zoom-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .zoom-btn {
+      flex: 1;
+      background: var(--btn);
+      border: 1px solid var(--border-hi);
+      border-radius: 4px;
+      color: var(--text);
+      cursor: pointer;
+      padding: 8px 0;
+      font-size: 13px;
+      font-family: var(--font-ui);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .zoom-btn:hover  { background: var(--btn-hover); border-color: var(--accent-dim); }
+    .zoom-btn:active { background: var(--btn-active); border-color: var(--accent); }
+    .zoom-btn .icon  { font-size: 15px; }
+
+    /* ── Preset buttons ────────────────────────────────────── */
+    .preset-btn {
+      width: 100%;
+      background: var(--btn);
+      border: 1px solid var(--border-hi);
+      border-radius: 4px;
+      color: var(--text);
+      cursor: pointer;
+      padding: 9px 12px;
+      font-size: 12px;
+      font-family: var(--font-ui);
+      text-align: left;
+      margin-bottom: 5px;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .preset-btn:hover  { background: var(--btn-hover); border-color: var(--accent-dim); }
+    .preset-btn:active { background: var(--btn-active); border-color: var(--accent); }
+    .preset-btn:last-child { margin-bottom: 0; }
+
+    /* ── Speed slider ──────────────────────────────────────── */
+    .speed-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .speed-row label {
+      font-size: 11px;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    input[type=range] {
+      flex: 1;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    #speed-val {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+      width: 28px;
+      text-align: right;
+    }
+
+    /* ── Connection config ─────────────────────────────────── */
+    .config-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .config-row label {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .config-row input {
+      background: var(--bg);
+      border: 1px solid var(--border-hi);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 6px 8px;
+      width: 100%;
+      outline: none;
+    }
+
+    .config-row input:focus { border-color: var(--accent); }
+
+    .connect-btn {
+      width: 100%;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      padding: 8px;
+      transition: background 0.15s;
+    }
+    .connect-btn:hover { background: var(--accent); color: var(--bg); }
+
+    /* ── Event log ─────────────────────────────────────────── */
+    #log {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      padding: 10px 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .log-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      flex-shrink: 0;
+    }
+
+    .log-entry {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .log-entry.cmd  { color: var(--accent); }
+    .log-entry.ok   { color: var(--ok); }
+    .log-entry.err  { color: #ff5555; }
+    .log-entry.info { color: var(--text-dim); }
+
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ──────────────────────────────────────────────── -->
+<div id="topbar">
+  <div class="logo">Palfinger <span>/ Crane Cam</span></div>
+
+  <div class="status-pill">
+    <div class="dot" id="dot-stream"></div>
+    <span class="label">STREAM</span>
+    <span class="value" id="lbl-stream">CONNECTING</span>
+  </div>
+
+  <div class="status-pill">
+    <div class="dot" id="dot-ptz"></div>
+    <span class="label">PTZ</span>
+    <span class="value" id="lbl-ptz">—</span>
+  </div>
+
+  <div class="spacer"></div>
+
+  <div id="latency-display">
+    LATENCY &nbsp;<span class="ms" id="latency-ms">—</span><span style="font-size:10px;color:var(--text-dim)"> ms</span>
+  </div>
+</div>
+
+<!-- ── Main area ─────────────────────────────────────────────── -->
+<div id="main">
+
+  <!-- Video -->
+  <div id="video-panel">
+    <video id="stream" autoplay playsinline muted></video>
+
+    <div id="video-overlay">
+      <div class="spinner"></div>
+      <p id="overlay-msg">Connecting to MediaMTX…</p>
+    </div>
+
+    <div id="stamp">
+      PALFINGER / HVL 2026 &nbsp;|&nbsp; SIMULATION MODE<br>
+      <span id="clock">—</span>
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div id="right-panel">
+
+    <!-- Connection config -->
+    <div class="section">
+      <div class="section-title">Connection</div>
+      <div class="config-row">
+        <label>MediaMTX host</label>
+        <input type="text" id="cfg-host" value=MediaMTX_HOST>
+      </div>
+      <div class="config-row">
+        <label>Stream path</label>
+        <input type="text" id="cfg-path" value="crane">
+      </div>
+      <div class="config-row">
+        <label>PTZ server host</label>
+        <input type="text" id="cfg-ptz" value="localhost:5000">
+      </div>
+      <button class="connect-btn" id="btn-connect">CONNECT</button>
+    </div>
+
+    <!-- PTZ D-pad -->
+    <div class="section">
+      <div class="section-title">Pan / Tilt</div>
+      <div class="dpad">
+        <div class="dpad-btn empty"></div>
+        <button class="dpad-btn" data-cmd="tilt_up"    title="Tilt up">▲</button>
+        <div class="dpad-btn empty"></div>
+
+        <button class="dpad-btn" data-cmd="pan_left"   title="Pan left">◀</button>
+        <button class="dpad-btn center" data-cmd="stop" title="Stop">■</button>
+        <button class="dpad-btn" data-cmd="pan_right"  title="Pan right">▶</button>
+
+        <div class="dpad-btn empty"></div>
+        <button class="dpad-btn" data-cmd="tilt_down"  title="Tilt down">▼</button>
+        <div class="dpad-btn empty"></div>
+      </div>
+    </div>
+
+    <!-- Zoom -->
+    <div class="section">
+      <div class="section-title">Zoom</div>
+      <div class="zoom-row">
+        <button class="zoom-btn" data-cmd="zoom_in">
+          <span class="icon">＋</span> IN
+        </button>
+        <button class="zoom-btn" data-cmd="zoom_out">
+          <span class="icon">－</span> OUT
+        </button>
+      </div>
+    </div>
+
+    <!-- Speed -->
+    <div class="section">
+      <div class="section-title">Speed</div>
+      <div class="speed-row">
+        <label>Slow</label>
+        <input type="range" id="speed" min="10" max="100" value="50" step="5">
+        <span id="speed-val">50</span>
+        <label>Fast</label>
+      </div>
+    </div>
+
+    <!-- Presets -->
+    <div class="section">
+      <div class="section-title">Presets</div>
+      <button class="preset-btn" data-cmd="preset_home">⌂ Home position</button>
+    </div>
+
+  </div>
+
+  <!-- Event log — right edge -->
+  <div id="log">
+    <div class="log-title">Event log</div>
+  </div>
+
+</div><!-- /#main -->
+
+<script>
+// ── Configuration ──────────────────────────────────────────────
+let MEDIAMTX_HOST = "192.168.1.147";
+let STREAM_PATH   = document.getElementById("cfg-path").value;
+let PTZ_HOST      = document.getElementById("cfg-ptz").value;
+
+// ── State ──────────────────────────────────────────────────────
+let pc = null;           // RTCPeerConnection
+let streamActive = false;
+let startTime    = null;
+let frameCount   = 0;
+
+// ── Elements ───────────────────────────────────────────────────
+const videoEl      = document.getElementById("stream");
+const overlay      = document.getElementById("video-overlay");
+const overlayMsg   = document.getElementById("overlay-msg");
+const dotStream    = document.getElementById("dot-stream");
+const lblStream    = document.getElementById("lbl-stream");
+const dotPtz       = document.getElementById("dot-ptz");
+const lblPtz       = document.getElementById("lbl-ptz");
+const latencyEl    = document.getElementById("latency-ms");
+const logEl        = document.getElementById("log");
+const speedSlider  = document.getElementById("speed");
+const speedVal     = document.getElementById("speed-val");
+const clockEl      = document.getElementById("clock");
+
+// ── Logging ────────────────────────────────────────────────────
+function addLog(msg, type = "info") {
+  const now = new Date().toLocaleTimeString("en-GB", {hour12: false});
+  const el = document.createElement("div");
+  el.className = `log-entry ${type}`;
+  el.textContent = `${now}  ${msg}`;
+  logEl.appendChild(el);
+  // Keep last 60 entries
+  while (logEl.children.length > 61) logEl.removeChild(logEl.children[1]);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ── Stream status updates ──────────────────────────────────────
+function setStreamStatus(state) {
+  if (state === "connecting") {
+    dotStream.className = "dot";
+    lblStream.textContent = "CONNECTING";
+    overlay.style.display = "flex";
+    overlayMsg.textContent = "Connecting to MediaMTX…";
+  } else if (state === "live") {
+    dotStream.className = "dot ok";
+    lblStream.textContent = "LIVE";
+    overlay.style.display = "none";
+    streamActive = true;
+  } else if (state === "error") {
+    dotStream.className = "dot err";
+    lblStream.textContent = "ERROR";
+    overlay.style.display = "flex";
+    overlayMsg.textContent = "Stream error — check MediaMTX is running";
+    streamActive = false;
+  } else {
+    dotStream.className = "dot warn";
+    lblStream.textContent = "OFFLINE";
+    overlay.style.display = "flex";
+    overlayMsg.textContent = "Stream offline";
+    streamActive = false;
+  }
+}
+
+// ── WebRTC connection ──────────────────────────────────────────
+async function connect() {
+  // Read config fields
+  MEDIAMTX_HOST = document.getElementById("cfg-host").value.trim();
+  STREAM_PATH   = document.getElementById("cfg-path").value.trim();
+  PTZ_HOST      = document.getElementById("cfg-ptz").value.trim();
+
+  if (pc) { pc.close(); pc = null; }
+
+  setStreamStatus("connecting");
+  addLog(`Connecting to ws://${MEDIAMTX_HOST}:8889/${STREAM_PATH}`, "info");
+
+  try {
+    // MediaMTX WHEP endpoint
+    const whepUrl = `http://${MEDIAMTX_HOST}:8889/${STREAM_PATH}/whep`;
+
+    pc = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    });
+
+    pc.ontrack = (evt) => {
+      if (evt.track.kind === "video") {
+        videoEl.srcObject = evt.streams[0];
+        startTime = performance.now();
+        addLog("Video track received", "ok");
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      addLog(`ICE state: ${pc.iceConnectionState}`, "info");
+      if (pc.iceConnectionState === "connected" ||
+          pc.iceConnectionState === "completed") {
+        setStreamStatus("live");
+        addLog("Stream live", "ok");
+      } else if (pc.iceConnectionState === "failed" ||
+                 pc.iceConnectionState === "disconnected") {
+        setStreamStatus("error");
+        addLog("ICE connection lost", "err");
+      }
+    };
+
+    // Add receive-only transceivers
+    pc.addTransceiver("video", { direction: "recvonly" });
+    pc.addTransceiver("audio", { direction: "recvonly" });
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    // Send offer to MediaMTX WHEP endpoint
+    const res = await fetch(whepUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/sdp" },
+      body: pc.localDescription.sdp
+    });
+
+    if (!res.ok) {
+      throw new Error(`MediaMTX returned HTTP ${res.status} — is the stream running?`);
+    }
+
+    const answerSdp = await res.text();
+    await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+    addLog("SDP exchange complete", "ok");
+
+  } catch (err) {
+    setStreamStatus("error");
+    addLog(`Connection failed: ${err.message}`, "err");
+    console.error(err);
+  }
+}
+
+
+// ── PTZ command sending ────────────────────────────────────────
+async function sendPTZ(cmd) {
+  const speed = speedSlider.value;
+  const url   = `http://${PTZ_HOST}/ptz?cmd=${cmd}&speed=${speed}`;
+
+  addLog(`PTZ → ${cmd} (speed ${speed})`, "cmd");
+
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      dotPtz.className = "dot ok";
+      lblPtz.textContent = cmd.toUpperCase().replace("_", " ");
+      setTimeout(() => {
+        dotPtz.className = "dot";
+        lblPtz.textContent = "—";
+      }, 800);
+    } else {
+      throw new Error(`HTTP ${res.status}`);
+    }
+  } catch (err) {
+    dotPtz.className = "dot err";
+    lblPtz.textContent = "ERR";
+    addLog(`PTZ error: ${err.message}`, "err");
+    setTimeout(() => { dotPtz.className = "dot"; lblPtz.textContent = "—"; }, 2000);
+  }
+}
+
+// ── Button event listeners ─────────────────────────────────────
+
+// D-pad and zoom buttons
+document.querySelectorAll("[data-cmd]").forEach(btn => {
+  btn.addEventListener("mousedown",  () => sendPTZ(btn.dataset.cmd));
+  btn.addEventListener("touchstart", (e) => { e.preventDefault(); sendPTZ(btn.dataset.cmd); }, { passive: false });
+});
+
+// Connect button
+document.getElementById("btn-connect").addEventListener("click", connect);
+
+// Speed slider
+speedSlider.addEventListener("input", () => {
+  speedVal.textContent = speedSlider.value;
+});
+
+// ── Live-edge enforcement ──────────────────────────────────────
+// The browser buffers video ahead of playback to smooth jitter.
+// On a low-latency stream this causes latency to grow continuously.
+// This function detects when the buffer has grown beyond the target
+// and jumps playback back to the live edge.
+
+const TARGET_LATENCY = 0.15;  // seconds — target buffer ahead of playback
+const MAX_LATENCY    = 0.5;   // seconds — jump to live edge above this
+
+function enforceLiveEdge() {
+  if (!streamActive || videoEl.readyState < 2) return;
+
+  try {
+    if (videoEl.buffered.length === 0) return;
+
+    const liveEdge   = videoEl.buffered.end(videoEl.buffered.length - 1);
+    const behind     = liveEdge - videoEl.currentTime;
+
+    // Update latency display (this is the real buffer-based latency)
+    const ms = Math.round(behind * 1000);
+    if (ms >= 0) latencyEl.textContent = ms;
+
+    // Colour the latency indicator
+    if (ms < 300) {
+      latencyEl.style.color = "var(--ok)";
+    } else if (ms < 600) {
+      latencyEl.style.color = "var(--warn)";
+    } else {
+      latencyEl.style.color = "#ff5555";
+    }
+
+    // If we have drifted too far behind the live edge, jump forward
+    if (behind > MAX_LATENCY) {
+      videoEl.currentTime = liveEdge - TARGET_LATENCY;
+      addLog(`Buffer drift ${ms}ms — jumped to live edge`, "info");
+    }
+  } catch (_) {}
+}
+
+// WebRTC stats — used to log packet loss, not latency
+async function updateStats() {
+  if (!pc || !streamActive) return;
+  try {
+    const stats = await pc.getStats();
+    stats.forEach(report => {
+      if (report.type === "inbound-rtp" && report.kind === "video") {
+        if (report.packetsLost > 0) {
+          addLog(`Packets lost: ${report.packetsLost}`, "info");
+        }
+      }
+    });
+  } catch (_) {}
+}
+
+// ── Clock ──────────────────────────────────────────────────────
+function updateClock() {
+  clockEl.textContent = new Date().toLocaleTimeString("en-GB", {hour12: false});
+}
+
+// ── Keyboard shortcuts ─────────────────────────────────────────
+const keyMap = {
+  "ArrowLeft":  "pan_left",
+  "ArrowRight": "pan_right",
+  "ArrowUp":    "tilt_up",
+  "ArrowDown":  "tilt_down",
+  "KeyW":       "tilt_up",
+  "KeyS":       "tilt_down",
+  "KeyA":       "pan_left",
+  "KeyD":       "pan_right",
+  "Equal":      "zoom_in",
+  "Minus":      "zoom_out",
+  "Space":      "stop",
+  "KeyH":       "preset_home",
+};
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;
+  const cmd = keyMap[e.code];
+  if (cmd) { e.preventDefault(); sendPTZ(cmd); }
+});
+
+// ── Startup ────────────────────────────────────────────────────
+setInterval(updateClock, 1000);
+setInterval(updateStats, 10000);
+setInterval(enforceLiveEdge, 200);  // check buffer every 200ms
+updateClock();
+
+addLog("Operator interface loaded", "ok");
+addLog("Arrow keys or WASD = pan/tilt", "info");
+addLog("+/- = zoom  |  Space = stop", "info");
+addLog("Click CONNECT to start stream", "info");
+
+// Auto-connect on page load
+connect();
+</script>
+</body>
+</html>

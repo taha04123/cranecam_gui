@@ -1,0 +1,33 @@
+# mediamtx.yml — Crane camera simulation config
+# Tuned for minimum latency
+
+logLevel: info
+logDestinations: [stdout]
+
+readTimeout: 10s
+writeTimeout: 10s
+
+# Reduce internal queue — drops frames rather than buffering
+# This is what keeps latency from growing
+writeQueueSize: 64
+
+rtsp: yes
+rtspAddress: :8554
+rtspTransports: [tcp]
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcEncryption: no
+webrtcAllowOrigins:
+  - "*"
+webrtcICEServers2:
+  - url: stun:stun.l.google.com:19302
+
+hls: no
+rtmp: no
+srt: no
+
+paths:
+  crane:
+    source: publisher
+    sourceOnDemand: no
