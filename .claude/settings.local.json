@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(python --version)",
+      "PowerShell(python3 --version)",
+      "PowerShell(py --version)",
+      "PowerShell($proc = Start-Process -FilePath py -ArgumentList \"C:\\\\Users\\\\tahaa\\\\Documents\\\\Bacheloroppgåve\\\\cranecam_gui\\\\server.py\" -PassThru -RedirectStandardOutput \"$env:TEMP\\\\srv_out.log\" -RedirectStandardError \"$env:TEMP\\\\srv_err.log\" -NoNewWindow; Start-Sleep -Seconds 4; if \\($proc.HasExited\\) { Write-Output \"EXITED with code $\\($proc.ExitCode\\)\" } else { Write-Output \"RUNNING \\(PID $\\($proc.Id\\)\\) — killing\"; Stop-Process -Id $proc.Id -Force }; Write-Output \"--- STDOUT ---\"; Get-Content \"$env:TEMP\\\\srv_out.log\" -ErrorAction SilentlyContinue; Write-Output \"--- STDERR ---\"; Get-Content \"$env:TEMP\\\\srv_err.log\" -ErrorAction SilentlyContinue)",
+      "Skill(anthropic-skills:typst)",
+      "Skill(anthropic-skills:typst:*)"
+    ]
+  }
+}

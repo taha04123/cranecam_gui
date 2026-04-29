@@ -89,11 +89,11 @@
     .tab-btn:hover { color: var(--text); }
     .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-    .tab-pane { display: none; flex: 1; overflow-y: auto; padding: 12px; }
+    .tab-pane { display: none; flex: 1; overflow-y: auto; padding: 10px 8px; }
     .tab-pane.active { display: block; }
     #tab-log.active { display: flex; flex-direction: column; }
 
-    /* ── Shared form elements ───────────────────── */
+    /* ── CONN tab ────────────────────────────────── */
     .sec {
       font-size: 9px; font-weight: 700; letter-spacing: 0.15em;
       text-transform: uppercase; color: var(--dim);
@@ -101,16 +101,14 @@
       border-bottom: 1px solid var(--border);
     }
     .sec:first-child { margin-top: 0; }
-
     .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
     .field label { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }
-    .field input[type=text], .field select {
+    .field input[type=text] {
       background: var(--bg); border: 1px solid #2e3a4a; border-radius: 3px;
       color: var(--text); font-family: monospace; font-size: 11px;
       padding: 5px 7px; outline: none; width: 100%;
     }
-    .field input[type=text]:focus, .field select:focus { border-color: var(--accent); }
-
+    .field input[type=text]:focus { border-color: var(--accent); }
     .btn-main {
       width: 100%; background: #00aaff22; border: 1px solid var(--accent);
       border-radius: 3px; color: var(--accent); cursor: pointer;
@@ -118,34 +116,109 @@
       padding: 7px; margin-bottom: 4px;
     }
     .btn-main:hover { background: var(--accent); color: var(--bg); }
-
     .btn-preset {
       width: 100%; background: var(--btn); border: 1px solid #2e3a4a;
       border-radius: 3px; color: var(--text); cursor: pointer;
       font-size: 11px; padding: 7px 10px; text-align: left; margin-bottom: 5px;
     }
     .btn-preset:hover { border-color: var(--accent); }
-
-    /* ── Slider row ─────────────────────────────── */
-    .sl-row { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
-    .sl-row label { font-size: 10px; color: var(--dim); white-space: nowrap; min-width: 52px; }
-    .sl-row input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; }
-    .sl-val { font-family: monospace; font-size: 10px; color: var(--accent); width: 26px; text-align: right; flex-shrink: 0; }
-
-    /* ── Toggle row ─────────────────────────────── */
-    .tog-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
-    .tog-row label { font-size: 10px; color: var(--dim); }
-    .tog {
-      background: var(--btn); border: 1px solid #2e3a4a;
-      border-radius: 3px; color: var(--dim); cursor: pointer;
-      font-size: 10px; font-weight: 700; font-family: monospace;
-      padding: 3px 10px; min-width: 36px;
-    }
-    .tog.on { background: #00aaff22; border-color: var(--accent); color: var(--accent); }
-    .tog:disabled { opacity: 0.35; cursor: not-allowed; }
-
-    /* ── Hints ──────────────────────────────────── */
+    .sl-row-conn { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
+    .sl-row-conn label { font-size: 10px; color: var(--dim); white-space: nowrap; min-width: 52px; }
+    .sl-row-conn input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; }
+    .sl-val-conn { font-family: monospace; font-size: 10px; color: var(--accent); width: 26px; text-align: right; flex-shrink: 0; }
     .hints { font-size: 10px; color: var(--dim); line-height: 2; }
+
+    /* ── Accordion ───────────────────────────────── */
+    .acc { border: 1px solid var(--border); border-radius: 4px; margin-bottom: 4px; overflow: hidden; }
+
+    .acc-head {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; cursor: pointer;
+      background: var(--btn); font-size: 11px;
+      color: var(--text); transition: background 0.15s;
+      border: none; width: 100%; text-align: left;
+    }
+    .acc-head:hover { background: #1e2a3a; }
+    .acc-arrow {
+      display: inline-block; font-size: 8px; color: var(--accent);
+      transition: transform 0.2s; flex-shrink: 0;
+    }
+    .acc-head.open .acc-arrow { transform: rotate(90deg); }
+
+    .acc-body { display: none; padding: 10px 10px 6px; border-top: 1px solid var(--border); }
+    .acc-body.open { display: block; }
+
+    /* ── Group header (like "General" in camera UI) ─ */
+    .group-hdr {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--dim); background: #0d1018;
+      padding: 5px 8px; margin: 6px 0 4px;
+      border-left: 2px solid var(--accent);
+    }
+
+    /* ── Camera setting row ──────────────────────── */
+    .cam-row {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      gap: 8px; margin-bottom: 8px;
+    }
+    .cam-lbl {
+      font-size: 10px; color: var(--dim);
+      flex: 0 0 auto; max-width: 48%; line-height: 1.3;
+    }
+    .cam-ctrl { display: flex; align-items: center; gap: 5px; flex: 1; justify-content: flex-end; }
+
+    /* Slider inside cam-row */
+    .cam-ctrl input[type=range] {
+      flex: 1; min-width: 60px; accent-color: var(--accent); cursor: pointer;
+    }
+    .sl-val {
+      font-family: monospace; font-size: 10px; color: var(--accent);
+      width: 24px; text-align: right; flex-shrink: 0;
+    }
+
+    /* Select inside cam-row */
+    .cam-ctrl select, select.cam-select {
+      background: var(--bg); border: 1px solid #2e3a4a; border-radius: 3px;
+      color: var(--text); font-family: monospace; font-size: 10px;
+      padding: 4px 5px; outline: none; cursor: pointer; max-width: 130px;
+    }
+    .cam-ctrl select:focus, select.cam-select:focus { border-color: var(--accent); }
+
+    /* Trigger button */
+    .btn-trigger {
+      background: #1a3a5c; border: 1px solid var(--accent);
+      border-radius: 3px; color: var(--accent); cursor: pointer;
+      font-size: 10px; font-weight: 700; padding: 4px 12px;
+    }
+    .btn-trigger:hover { background: var(--accent); color: var(--bg); }
+
+    /* Refresh button */
+    .btn-refresh {
+      width: 100%; background: var(--btn); border: 1px solid #2e3a4a;
+      border-radius: 3px; color: var(--dim); cursor: pointer;
+      font-size: 10px; padding: 7px; margin-top: 8px;
+      transition: all 0.15s;
+    }
+    .btn-refresh:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Toggle switch (pill) ────────────────────── */
+    .sw { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; cursor: pointer; }
+    .sw input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .sw-track {
+      position: absolute; inset: 0;
+      background: #2e3a4a; border-radius: 11px;
+      transition: background 0.2s;
+    }
+    .sw-track::after {
+      content: ''; position: absolute;
+      width: 16px; height: 16px;
+      background: var(--dim); border-radius: 50%;
+      top: 3px; left: 3px;
+      transition: all 0.2s;
+    }
+    .sw input:checked + .sw-track { background: #1a3a5c; border: 1px solid var(--accent); }
+    .sw input:checked + .sw-track::after { transform: translateX(18px); background: var(--accent); }
 
     /* ── Log ────────────────────────────────────── */
     #log-entries { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
@@ -195,26 +268,22 @@
 
     <!-- ── CONN tab ── -->
     <div class="tab-pane active" id="tab-conn">
-      <div class="sec">Connection</div>
+      <div class="sec">Stream</div>
       <div class="field">
         <label>MediaMTX host</label>
-        <input type="text" id="cfg-host" value="100.83.7.52">
+        <input type="text" id="cfg-host" value="192.168.2.1">
       </div>
       <div class="field">
         <label>Stream path</label>
         <input type="text" id="cfg-path" value="crane">
       </div>
-      <div class="field">
-        <label>PTZ server</label>
-        <input type="text" id="cfg-ptz" value="localhost:5000">
-      </div>
       <button class="btn-main" id="btn-connect">CONNECT</button>
 
       <div class="sec">Speed</div>
-      <div class="sl-row">
+      <div class="sl-row-conn">
         <label>Speed</label>
         <input type="range" id="speed" min="10" max="100" value="50" step="5">
-        <span class="sl-val" id="speed-val">50</span>
+        <span class="sl-val-conn" id="speed-val">50</span>
       </div>
 
       <div class="sec">Presets</div>
@@ -233,100 +302,256 @@
     <!-- ── CAM tab ── -->
     <div class="tab-pane" id="tab-cam">
 
-      <div class="sec">Colour</div>
-      <div class="sl-row">
-        <label>Bright</label>
-        <input type="range" id="sl-brightness" min="0" max="100" value="50">
-        <span class="sl-val" id="v-brightness">50</span>
-      </div>
-      <div class="sl-row">
-        <label>Contrast</label>
-        <input type="range" id="sl-contrast" min="0" max="100" value="50">
-        <span class="sl-val" id="v-contrast">50</span>
-      </div>
-      <div class="sl-row">
-        <label>Saturation</label>
-        <input type="range" id="sl-saturation" min="0" max="100" value="50">
-        <span class="sl-val" id="v-saturation">50</span>
-      </div>
-
-      <div class="sec">Detail</div>
-      <div class="sl-row">
-        <label>Sharpness</label>
-        <input type="range" id="sl-sharpness" min="0" max="100" value="50">
-        <span class="sl-val" id="v-sharpness">50</span>
-      </div>
-      <div class="sl-row">
-        <label>Noise NR</label>
-        <input type="range" id="sl-noise" min="0" max="100" value="50">
-        <span class="sl-val" id="v-noise">50</span>
-      </div>
-
-      <div class="sec">Image</div>
-      <div class="field">
-        <label>Day / Night</label>
-        <select id="sel-daynight">
-          <option value="auto">Auto</option>
-          <option value="day">Day</option>
-          <option value="night">Night</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>White Balance</label>
-        <select id="sel-wb">
-          <option value="auto">Auto</option>
-          <option value="sunny">Sunny</option>
-          <option value="cloudy">Cloudy</option>
-          <option value="fluorescent">Fluorescent</option>
-          <option value="tungsten">Tungsten</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Flip / Mirror</label>
-        <select id="sel-flip">
-          <option value="none">None</option>
-          <option value="MIRROR">Mirror (H)</option>
-          <option value="FLIP">Flip (V)</option>
-          <option value="CENTER">Both</option>
-        </select>
+      <!-- Image Adjustment -->
+      <div class="acc">
+        <button class="acc-head open" onclick="accToggle(this)">
+          <span class="acc-arrow">▶</span> Image Adjustment
+        </button>
+        <div class="acc-body open">
+          <div class="cam-row">
+            <span class="cam-lbl">Brightness</span>
+            <div class="cam-ctrl">
+              <input type="range" id="sl-brightness" min="0" max="100" value="50">
+              <span class="sl-val" id="v-brightness">50</span>
+            </div>
+          </div>
+          <div class="cam-row">
+            <span class="cam-lbl">Contrast</span>
+            <div class="cam-ctrl">
+              <input type="range" id="sl-contrast" min="0" max="100" value="50">
+              <span class="sl-val" id="v-contrast">50</span>
+            </div>
+          </div>
+          <div class="cam-row">
+            <span class="cam-lbl">Saturation</span>
+            <div class="cam-ctrl">
+              <input type="range" id="sl-saturation" min="0" max="100" value="50">
+              <span class="sl-val" id="v-saturation">50</span>
+            </div>
+          </div>
+          <div class="cam-row">
+            <span class="cam-lbl">Sharpness</span>
+            <div class="cam-ctrl">
+              <input type="range" id="sl-sharpness" min="0" max="100" value="50">
+              <span class="sl-val" id="v-sharpness">50</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="sec">Enhancement</div>
-      <div class="tog-row">
-        <label>WDR</label>
-        <button class="tog" id="tog-wdr">OFF</button>
-      </div>
-      <div class="sl-row" id="wdr-level-row" style="display:none">
-        <label>WDR level</label>
-        <input type="range" id="sl-wdr-level" min="0" max="100" value="50">
-        <span class="sl-val" id="v-wdr-level">50</span>
-      </div>
-      <div class="tog-row">
-        <label>BLC</label>
-        <button class="tog" id="tog-blc">OFF</button>
-      </div>
-      <div class="tog-row">
-        <label>Dehaze</label>
-        <button class="tog" id="tog-dehaze">OFF</button>
-      </div>
-      <div class="sl-row" id="dehaze-level-row" style="display:none">
-        <label>Dehaze lvl</label>
-        <input type="range" id="sl-dehaze-level" min="0" max="100" value="80">
-        <span class="sl-val" id="v-dehaze-level">80</span>
+      <!-- Focus -->
+      <div class="acc">
+        <button class="acc-head" onclick="accToggle(this)">
+          <span class="acc-arrow">▶</span> Focus
+        </button>
+        <div class="acc-body">
+          <div class="cam-row">
+            <span class="cam-lbl">Focus Mode</span>
+            <div class="cam-ctrl">
+              <select id="sel-focus">
+                <option value="AUTO">Auto</option>
+                <option value="SEMIAUTOMATIC">Semi-automatic</option>
+                <option value="MANUAL">Manual</option>
+              </select>
+            </div>
+          </div>
+          <div class="cam-row">
+            <span class="cam-lbl">Min focusing distance</span>
+            <div class="cam-ctrl">
+              <select id="sel-focus-dist">
+                <option value="10">10cm</option>
+                <option value="30">30cm</option>
+                <option value="100">1.0m</option>
+                <option value="150">1.5m</option>
+                <option value="300" selected>3.0m</option>
+                <option value="600">6.0m</option>
+                <option value="1000">10.0m</option>
+                <option value="2000">20.0m</option>
+                <option value="5000">50.0m</option>
+                <option value="10000">infinity</option>
+              </select>
+            </div>
+          </div>
+          <div class="cam-row">
+            <span class="cam-lbl">One Key Focus</span>
+            <div class="cam-ctrl">
+              <button class="btn-trigger" id="btn-focus-trigger">Trigger</button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="sec">Focus</div>
-      <div class="field">
-        <label>Focus mode</label>
-        <select id="sel-focus">
-          <option value="AUTO">Auto</option>
-          <option value="MANUAL">Manual</option>
-        </select>
+      <!-- White Balance -->
+      <div class="acc">
+        <button class="acc-head" onclick="accToggle(this)">
+          <span class="acc-arrow">▶</span> White Balance
+        </button>
+        <div class="acc-body">
+          <div class="cam-row">
+            <span class="cam-lbl">White Balance</span>
+            <div class="cam-ctrl">
+              <select id="sel-wb">
+                <option value="manual">Manual White Balance</option>
+                <option value="auto1">Automatic White Balance</option>
+                <option value="outdoor">Outdoor Mode</option>
+                <option value="daylightLamp">Daylight Mode</option>
+                <option value="sodiumlight">Sodium Lamp Mode</option>
+                <option value="incandescentlight">Incandescent Lamp Mode</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </div>
-      <button class="btn-preset" id="btn-focus-trigger">⟳ Trigger Focus</button>
 
-      <div class="sec" style="margin-top:16px"></div>
-      <button class="btn-preset" id="btn-cam-refresh">↻ Refresh from camera</button>
+      <!-- Backlight / Dynamic Range -->
+      <div class="acc">
+        <button class="acc-head" onclick="accToggle(this)">
+          <span class="acc-arrow">▶</span> Dynamic Range
+        </button>
+        <div class="acc-body">
+          <div class="cam-row">
+            <span class="cam-lbl">HLC (sun glare)</span>
+            <div class="cam-ctrl">
+              <label class="sw">
+                <input type="checkbox" id="chk-hlc">
+                <span class="sw-track"></span>
+              </label>
+            </div>
+          </div>
+          <div class="cam-row" id="hlc-level-row" style="display:none">
+            <span class="cam-lbl">HLC Level</span>
+            <div class="cam-ctrl">
+              <input type="range" id="sl-hlc-level" min="0" max="100" value="50">
+              <span class="sl-val" id="v-hlc-level">50</span>
+            </div>
+          </div>
+          <div class="cam-row">
+            <span class="cam-lbl">Super WDR</span>
+            <div class="cam-ctrl">
+              <select id="sel-super-wdr">
+                <option value="close">Close</option>
+                <option value="open">Open</option>
+              </select>
+            </div>
+          </div>
+          <div class="cam-row" id="wdr-level-row" style="display:none">
+            <span class="cam-lbl">WDR Level</span>
+            <div class="cam-ctrl">
+              <input type="range" id="sl-wdr-level" min="1" max="10" value="5">
+              <span class="sl-val" id="v-wdr-level">5</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Image Enhancement -->
+      <div class="acc">
+        <button class="acc-head" onclick="accToggle(this)">
+          <span class="acc-arrow">▶</span> Image Enhancement
+        </button>
+        <div class="acc-body">
+          <div class="cam-row">
+            <span class="cam-lbl">Digital Noise Reduction</span>
+            <div class="cam-ctrl">
+              <select id="sel-noise-mode">
+                <option value="close">OFF</option>
+                <option value="general" selected>Normal</option>
+                <option value="advanced">3DNR</option>
+              </select>
+            </div>
+          </div>
+          <div class="cam-row" id="noise-level-row">
+            <span class="cam-lbl">Noise Reduction Level</span>
+            <div class="cam-ctrl">
+              <input type="range" id="sl-noise" min="0" max="100" value="50">
+              <span class="sl-val" id="v-noise">50</span>
+            </div>
+          </div>
+          <div class="cam-row" id="noise-spatial-row" style="display:none">
+            <span class="cam-lbl">Spatial NR Level</span>
+            <div class="cam-ctrl">
+              <input type="range" id="sl-noise-spatial" min="0" max="100" value="50">
+              <span class="sl-val" id="v-noise-spatial">50</span>
+            </div>
+          </div>
+          <div class="cam-row" id="noise-temporal-row" style="display:none">
+            <span class="cam-lbl">Temporal NR Level</span>
+            <div class="cam-ctrl">
+              <input type="range" id="sl-noise-temporal" min="0" max="100" value="50">
+              <span class="sl-val" id="v-noise-temporal">50</span>
+            </div>
+          </div>
+          <div class="cam-row">
+            <span class="cam-lbl">Defog</span>
+            <div class="cam-ctrl">
+              <select id="sel-defog">
+                <option value="close">OFF</option>
+                <option value="open">ON</option>
+                <option value="auto">Auto</option>
+              </select>
+            </div>
+          </div>
+          <div class="cam-row" id="dehaze-level-row" style="display:none">
+            <span class="cam-lbl">Dehaze Level</span>
+            <div class="cam-ctrl">
+              <input type="range" id="sl-dehaze-level" min="0" max="100" value="80">
+              <span class="sl-val" id="v-dehaze-level">80</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Day/Night Switch -->
+      <div class="acc">
+        <button class="acc-head" onclick="accToggle(this)">
+          <span class="acc-arrow">▶</span> Day/Night Switch
+        </button>
+        <div class="acc-body">
+          <div class="cam-row">
+            <span class="cam-lbl">Day/Night Switch</span>
+            <div class="cam-ctrl">
+              <select id="sel-daynight">
+                <option value="day">Day</option>
+                <option value="night">Night</option>
+                <option value="auto">Auto</option>
+              </select>
+            </div>
+          </div>
+          <div class="cam-row" id="dn-sensitivity-row" style="display:none">
+            <span class="cam-lbl">Sensitivity</span>
+            <div class="cam-ctrl">
+              <input type="range" id="sl-dn-sensitivity" min="0" max="7" value="4">
+              <span class="sl-val" id="v-dn-sensitivity">4</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GENERAL group header -->
+      <div class="group-hdr">General</div>
+
+      <!-- Mirror -->
+      <div class="acc">
+        <button class="acc-head" onclick="accToggle(this)">
+          <span class="acc-arrow">▶</span> Mirror
+        </button>
+        <div class="acc-body">
+          <div class="cam-row">
+            <span class="cam-lbl">Mirror</span>
+            <div class="cam-ctrl">
+              <select id="sel-flip">
+                <option value="OFF">OFF</option>
+                <option value="LEFTRIGHT">Left / Right</option>
+                <option value="UPDOWN">Up / Down</option>
+                <option value="CENTER">Center</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-refresh" id="btn-cam-refresh">↻ Refresh from camera</button>
+      <button class="btn-refresh" id="btn-cam-reset" style="border-color:var(--warn);color:var(--warn);margin-top:4px">⟳ Reset image to defaults</button>
     </div>
 
     <!-- ── LOG tab ── -->
@@ -339,31 +564,28 @@
 
 <script>
 // ── Config ──────────────────────────────────────
-let MEDIAMTX_HOST = "100.83.7.52";
-let STREAM_PATH   = "crane";
-let PTZ_HOST      = "localhost:5000";
+let MEDIAMTX_HOST = '192.168.2.1';
+let STREAM_PATH   = 'crane';
 
 // ── State ────────────────────────────────────────
-let pc = null;
-let streamActive  = false;
-let reconnectTimer = null;
+let pc = null, streamActive = false, reconnectTimer = null;
 
 // ── Elements ─────────────────────────────────────
-const videoEl    = document.getElementById("stream");
-const overlay    = document.getElementById("overlay");
-const overlayMsg = document.getElementById("overlay-msg");
-const dotStream  = document.getElementById("dot-stream");
-const lblStream  = document.getElementById("lbl-stream");
-const dotPtz     = document.getElementById("dot-ptz");
-const lblPtz     = document.getElementById("lbl-ptz");
-const latEl      = document.getElementById("lat-ms");
-const speedSlider= document.getElementById("speed");
-const logEntries = document.getElementById("log-entries");
+const videoEl    = document.getElementById('stream');
+const overlay    = document.getElementById('overlay');
+const overlayMsg = document.getElementById('overlay-msg');
+const dotStream  = document.getElementById('dot-stream');
+const lblStream  = document.getElementById('lbl-stream');
+const dotPtz     = document.getElementById('dot-ptz');
+const lblPtz     = document.getElementById('lbl-ptz');
+const latEl      = document.getElementById('lat-ms');
+const speedSlider= document.getElementById('speed');
+const logEntries = document.getElementById('log-entries');
 
 // ── Logging ──────────────────────────────────────
-function addLog(msg, type = "info") {
-  const now = new Date().toLocaleTimeString("en-GB", {hour12: false});
-  const el = document.createElement("div");
+function addLog(msg, type = 'info') {
+  const now = new Date().toLocaleTimeString('en-GB', {hour12: false});
+  const el = document.createElement('div');
   el.className = `log-entry ${type}`;
   el.textContent = `${now} ${msg}`;
   logEntries.appendChild(el);
@@ -371,74 +593,60 @@ function addLog(msg, type = "info") {
   logEntries.scrollTop = logEntries.scrollHeight;
 }
 
-// ── Stream status ─────────────────────────────────
+// ── Accordion ─────────────────────────────────────
+function accToggle(head) {
+  head.classList.toggle('open');
+  head.nextElementSibling.classList.toggle('open');
+}
+
+// ── Stream ────────────────────────────────────────
 function setStream(state) {
   const m = {
-    connecting: ["dot",      "CONNECTING", true,  "Connecting…"],
-    live:       ["dot ok",   "LIVE",       false, ""],
-    error:      ["dot err",  "ERROR",      true,  "Stream error — retrying…"],
+    connecting: ['dot',    'CONNECTING', true,  'Connecting…'],
+    live:       ['dot ok', 'LIVE',       false, ''],
+    error:      ['dot err','ERROR',      true,  'Stream error — retrying…'],
   };
-  const [cls, lbl, showOverlay, msg] = m[state] || m.error;
+  const [cls, lbl, showOv, msg] = m[state] || m.error;
   dotStream.className = cls;
   lblStream.textContent = lbl;
-  overlay.style.display = showOverlay ? "flex" : "none";
+  overlay.style.display = showOv ? 'flex' : 'none';
   if (msg) overlayMsg.textContent = msg;
-  streamActive = state === "live";
+  streamActive = state === 'live';
 }
 
 // ── WebRTC ───────────────────────────────────────
 async function connect() {
-  MEDIAMTX_HOST = document.getElementById("cfg-host").value.trim();
-  STREAM_PATH   = document.getElementById("cfg-path").value.trim();
-  PTZ_HOST      = document.getElementById("cfg-ptz").value.trim();
-
+  MEDIAMTX_HOST = document.getElementById('cfg-host').value.trim();
+  STREAM_PATH   = document.getElementById('cfg-path').value.trim();
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   if (pc) { pc.close(); pc = null; }
-
-  setStream("connecting");
-  addLog(`Connecting to ${MEDIAMTX_HOST}/${STREAM_PATH}`, "info");
-
+  setStream('connecting');
+  addLog(`Connecting to ${MEDIAMTX_HOST}/${STREAM_PATH}`, 'info');
   try {
-    pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-
-    pc.ontrack = (evt) => {
-      if (evt.track.kind === "video") videoEl.srcObject = evt.streams[0];
-    };
-
+    pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    pc.ontrack = evt => { if (evt.track.kind === 'video') videoEl.srcObject = evt.streams[0]; };
     pc.oniceconnectionstatechange = () => {
-      addLog(`ICE: ${pc.iceConnectionState}`, "info");
-      if (["connected", "completed"].includes(pc.iceConnectionState)) {
-        setStream("live");
-        addLog("Stream live", "ok");
-        loadCameraSettings();
-      } else if (["failed", "disconnected", "closed"].includes(pc.iceConnectionState)) {
-        setStream("error");
-        scheduleReconnect();
+      addLog(`ICE: ${pc.iceConnectionState}`, 'info');
+      if (['connected','completed'].includes(pc.iceConnectionState)) {
+        setStream('live'); addLog('Stream live', 'ok'); loadCameraSettings();
+      } else if (['failed','disconnected','closed'].includes(pc.iceConnectionState)) {
+        setStream('error'); scheduleReconnect();
       }
     };
-
-    pc.addTransceiver("video", { direction: "recvonly" });
-    pc.addTransceiver("audio", { direction: "recvonly" });
-
+    pc.addTransceiver('video', { direction: 'recvonly' });
+    pc.addTransceiver('audio', { direction: 'recvonly' });
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-
     const res = await fetch(`http://${MEDIAMTX_HOST}:8889/${STREAM_PATH}/whep`, {
-      method: "POST",
-      headers: { "Content-Type": "application/sdp" },
-      body: pc.localDescription.sdp
+      method: 'POST', headers: { 'Content-Type': 'application/sdp' }, body: pc.localDescription.sdp
     });
     if (!res.ok) throw new Error(`MediaMTX HTTP ${res.status}`);
-    await pc.setRemoteDescription({ type: "answer", sdp: await res.text() });
-    addLog("SDP exchange complete", "ok");
-
+    await pc.setRemoteDescription({ type: 'answer', sdp: await res.text() });
+    addLog('SDP exchange complete', 'ok');
   } catch (err) {
-    setStream("error");
-    addLog(`Connection failed: ${err.message}`, "err");
-    scheduleReconnect();
+    setStream('error'); addLog(`Connection failed: ${err.message}`, 'err'); scheduleReconnect();
   }
 }
-
 function scheduleReconnect() {
   if (reconnectTimer) return;
   reconnectTimer = setTimeout(connect, 4000);
@@ -447,294 +655,345 @@ function scheduleReconnect() {
 // ── PTZ ──────────────────────────────────────────
 async function sendPTZ(cmd) {
   try {
-    const res = await fetch(`http://${PTZ_HOST}/ptz?cmd=${cmd}&speed=${speedSlider.value}`);
-    if (res.ok) {
-      dotPtz.className = "dot ok";
-      lblPtz.textContent = cmd.replace(/_/g, " ").toUpperCase();
-      setTimeout(() => { dotPtz.className = "dot"; lblPtz.textContent = "—"; }, 500);
-    }
-  } catch (_) {
-    dotPtz.className = "dot err";
-    setTimeout(() => { dotPtz.className = "dot"; }, 1500);
-  }
+    await fetch(`/ptz?cmd=${cmd}&speed=${speedSlider.value}`);
+    dotPtz.className = 'dot ok';
+    lblPtz.textContent = cmd.replace(/_/g,' ').toUpperCase();
+    setTimeout(() => { dotPtz.className = 'dot'; lblPtz.textContent = '—'; }, 500);
+  } catch (_) { dotPtz.className = 'dot err'; setTimeout(() => dotPtz.className = 'dot', 1500); }
 }
-
 let ptzTimer = null;
 function startPTZ(cmd) {
-  if (cmd === "stop" || cmd === "preset_home") { sendPTZ(cmd); return; }
+  if (cmd === 'stop' || cmd === 'preset_home') { sendPTZ(cmd); return; }
   sendPTZ(cmd);
   if (ptzTimer) clearInterval(ptzTimer);
   ptzTimer = setInterval(() => sendPTZ(cmd), 100);
 }
 function stopPTZ(cmd) {
   if (!ptzTimer) return;
-  clearInterval(ptzTimer);
-  ptzTimer = null;
-  if (cmd !== "stop" && cmd !== "preset_home") sendPTZ("stop");
+  clearInterval(ptzTimer); ptzTimer = null;
+  if (cmd !== 'stop' && cmd !== 'preset_home') sendPTZ('stop');
 }
 
-// ── Camera ───────────────────────────────────────
-function debounce(fn, ms) {
-  let t;
-  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-}
+// ── Camera API ────────────────────────────────────
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
 async function sendCamera(cmd, value, level = '') {
   try {
-    const url = `http://${PTZ_HOST}/camera?cmd=${cmd}&value=${encodeURIComponent(value)}&level=${level}`;
-    const res = await fetch(url);
-    const ct  = res.headers.get('Content-Type') || '';
+    const res  = await fetch(`/camera?cmd=${cmd}&value=${encodeURIComponent(value)}&level=${level}`);
+    const ct   = res.headers.get('Content-Type') || '';
     if (ct.includes('xml')) { addLog(`CAM ${cmd} ok`, 'ok'); return; }
     const data = await res.json();
-    if (!data.ok) addLog(`CAM ${cmd} err: ${data.error || data.camResponse || ''}`, 'err');
-    else addLog(`CAM ${cmd}=${value}`, 'cmd');
-  } catch (e) {
-    addLog(`CAM ${cmd} failed: ${e.message}`, 'err');
-  }
+    if (!data.ok) addLog(`CAM ${cmd} err: ${data.camResponse || data.error || ''}`, 'err');
+    else          addLog(`CAM ${cmd}=${value}`, 'cmd');
+  } catch (e) { addLog(`CAM ${cmd} failed: ${e.message}`, 'err'); }
 }
 
-function setSlider(slId, vId, value, def) {
-  const v = (value !== null && value !== undefined && value !== '') ? parseInt(value) : def;
-  const sl = document.getElementById(slId);
-  const vl = document.getElementById(vId);
+// ── Helpers ───────────────────────────────────────
+function setSlider(id, vid, val, def) {
+  const v = (val !== null && val !== undefined && val !== '') ? parseFloat(val) : def;
+  const sl = document.getElementById(id), vl = document.getElementById(vid);
   if (sl) sl.value = v;
-  if (vl) vl.textContent = v;
+  if (vl) vl.textContent = Math.round(v);
+}
+function setSelect(id, val) {
+  const el = document.getElementById(id);
+  if (el && val !== null && val !== undefined) el.value = val;
+}
+function setCheck(id, on) {
+  const el = document.getElementById(id);
+  if (el) el.checked = on;
+}
+function updateNoiseLevel() {
+  const v = document.getElementById('sel-noise-mode').value;
+  document.getElementById('noise-level-row').style.display    = v === 'general'  ? 'flex' : 'none';
+  document.getElementById('noise-spatial-row').style.display  = v === 'advanced' ? 'flex' : 'none';
+  document.getElementById('noise-temporal-row').style.display = v === 'advanced' ? 'flex' : 'none';
+}
+function updateDayNight() {
+  const auto = document.getElementById('sel-daynight').value === 'auto';
+  document.getElementById('dn-sensitivity-row').style.display = auto ? 'flex' : 'none';
+}
+function updateWDR() {
+  const on = document.getElementById('sel-super-wdr').value !== 'close';
+  document.getElementById('wdr-level-row').style.display = on ? 'flex' : 'none';
+}
+function updateHLC() {
+  const on = document.getElementById('chk-hlc').checked;
+  document.getElementById('hlc-level-row').style.display = on ? 'flex' : 'none';
+}
+function updateDefog() {
+  const v = document.getElementById('sel-defog').value;
+  document.getElementById('dehaze-level-row').style.display = v === 'auto' ? 'flex' : 'none';
 }
 
-function setToggle(id, isOn) {
-  const btn = document.getElementById(id);
-  if (!btn) return;
-  btn.textContent = isOn ? 'ON' : 'OFF';
-  btn.classList.toggle('on', isOn);
-}
-
-function updateWdrBlc() {
-  const wdrOn = document.getElementById('tog-wdr').classList.contains('on');
-  document.getElementById('wdr-level-row').style.display = wdrOn ? 'flex' : 'none';
-  const blc = document.getElementById('tog-blc');
-  blc.disabled = wdrOn;
-}
-
-function updateDehazeLevel() {
-  const on = document.getElementById('tog-dehaze').classList.contains('on');
-  document.getElementById('dehaze-level-row').style.display = on ? 'flex' : 'none';
-}
-
+// ── Load all settings ─────────────────────────────
 async function loadCameraSettings() {
-  try {
-    addLog('Loading camera settings…', 'info');
-    const res = await fetch(`http://${PTZ_HOST}/camera?cmd=get_settings`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    const xml  = new DOMParser().parseFromString(text, 'application/xml');
+  addLog('Loading camera settings…', 'info');
 
-    // getElementsByTagName works across XML namespaces; querySelector does not
-    function xval(parentTag, childTag) {
-      const parent = xml.getElementsByTagName(parentTag)[0];
-      if (!parent) return null;
-      return parent.getElementsByTagName(childTag)[0]?.textContent ?? null;
+  // Helper: parse XML text and get tag value within a parent
+  function xval(xmlDoc, parent, child) {
+    const parents = xmlDoc.getElementsByTagName(parent);
+    for (const p of parents) {
+      const c = p.getElementsByTagName(child)[0];
+      if (c) return c.textContent;
+    }
+    return null;
+  }
+  function xfirst(xmlDoc, tag) {
+    return xmlDoc.getElementsByTagName(tag)[0]?.textContent ?? null;
+  }
+
+  // Fetch all endpoints in parallel
+  const [mainRes, focusRes, ircutRes, wbRes, dehRes, flipRes, noiseRes, wdrRes, hlcRes] = await Promise.allSettled([
+    fetch('/camera?cmd=get_settings').then(r => r.text()),
+    fetch('/camera?cmd=get_focus').then(r => r.text()),
+    fetch('/camera?cmd=get_ircut').then(r => r.text()),
+    fetch('/camera?cmd=get_wb').then(r => r.text()),
+    fetch('/camera?cmd=get_dehaze').then(r => r.text()),
+    fetch('/camera?cmd=get_flip').then(r => r.text()),
+    fetch('/camera?cmd=get_noise').then(r => r.text()),
+    fetch('/camera?cmd=get_wdr').then(r => r.text()),
+    fetch('/camera?cmd=get_hlc').then(r => r.text()),
+  ]);
+
+  const parse = r => r.status === 'fulfilled'
+    ? new DOMParser().parseFromString(r.value, 'application/xml') : null;
+
+  const main  = parse(mainRes);
+  const focus = parse(focusRes);
+  const ircut = parse(ircutRes);
+  const wb    = parse(wbRes);
+  const deh   = parse(dehRes);
+  const flip  = parse(flipRes);
+  const noise = parse(noiseRes);
+  const wdr   = parse(wdrRes);
+  const hlc   = parse(hlcRes);
+
+  try {
+    // Image Adjustment
+    if (main) {
+      setSlider('sl-brightness', 'v-brightness', xval(main,'Color','brightnessLevel'), 50);
+      setSlider('sl-contrast',   'v-contrast',   xval(main,'Color','contrastLevel'),   50);
+      setSlider('sl-saturation', 'v-saturation', xval(main,'Color','saturationLevel'), 50);
+      setSlider('sl-sharpness',  'v-sharpness',  xval(main,'Sharpness','SharpnessLevel'), 50);
     }
 
-    // Colour (Video Input channel)
-    setSlider('sl-brightness', 'v-brightness', xval('Color', 'brightnessLevel'), 50);
-    setSlider('sl-contrast',   'v-contrast',   xval('Color', 'contrastLevel'),   50);
-    setSlider('sl-saturation', 'v-saturation', xval('Color', 'saturationLevel'), 50);
 
-    // Detail (Image channel)
-    setSlider('sl-sharpness', 'v-sharpness', xval('Sharpness', 'SharpnessLevel'), 50);
-    setSlider('sl-noise',     'v-noise',     xval('GeneralMode', 'generalLevel'),  50);
+    // Focus — only focusStyle and focusLimited exist in this camera's XML
+    if (focus) {
+      setSelect('sel-focus',      xfirst(focus,'focusStyle'));
+      setSelect('sel-focus-dist', xfirst(focus,'focusLimited')); // cm: 300=3.0m
+    }
 
-    // Day/Night
-    const dn = xval('IrcutFilter', 'IrcutFilterType');
-    if (dn) document.getElementById('sel-daynight').value = dn.toLowerCase();
+    // White Balance — mode only (manual gains removed for marine UI)
+    if (wb) {
+      setSelect('sel-wb', xfirst(wb,'WhiteBalanceStyle')?.toLowerCase());
+    }
 
-    // White Balance
-    const wb = xval('WhiteBalance', 'WhiteBalanceStyle');
-    if (wb) document.getElementById('sel-wb').value = wb.toLowerCase();
+    // Backlight — HLC + WDR (BLC removed: ISAPI broken on this firmware)
+    if (hlc) {
+      setCheck('chk-hlc', xfirst(hlc,'enabled') === 'true');
+      setSlider('sl-hlc-level','v-hlc-level', xfirst(hlc,'HLCLevel'), 50);
+    }
+    if (wdr) {
+      setSelect('sel-super-wdr', xfirst(wdr,'mode'));
+      setSlider('sl-wdr-level', 'v-wdr-level', xfirst(wdr,'WDRLevel'), 5);
+    }
+    updateDayNight(); updateWDR(); updateHLC();
 
-    // Flip
-    const flipEnabled = xval('ImageFlip', 'enabled');
-    const flipStyle   = xval('ImageFlip', 'ImageFlipStyle');
-    document.getElementById('sel-flip').value =
-      (flipEnabled === 'true' && flipStyle) ? flipStyle : 'none';
+    // Image Enhancement — noise from dedicated /noiseReduce endpoint
+    // mode values: close | general | advanced
+    if (noise) {
+      const nm = xfirst(noise,'mode');
+      if (nm) { setSelect('sel-noise-mode', nm); updateNoiseLevel(); }
+      setSlider('sl-noise','v-noise', xval(noise,'GeneralMode','generalLevel'), 50);
+      setSlider('sl-noise-spatial', 'v-noise-spatial', xval(noise,'AdvancedMode','FrameNoiseReduceLevel'), 50);
+      setSlider('sl-noise-temporal','v-noise-temporal', xval(noise,'AdvancedMode','InterFrameNoiseReduceLevel'), 50);
+    }
+    if (deh) {
+      setSelect('sel-defog', xval(deh,'Dehaze','DehazeMode'));
+      setSlider('sl-dehaze-level','v-dehaze-level', xval(deh,'Dehaze','DehazeLevel'), 80);
+    }
+    updateDefog();
 
-    // WDR
-    setToggle('tog-wdr', xval('WDR', 'mode') === 'open');
-    setSlider('sl-wdr-level', 'v-wdr-level', xval('WDR', 'WDRLevel'), 50);
+    // Day/Night — sensitivity: dayToNightFilterLevel values: low | normal | high
+    if (ircut) {
+      setSelect('sel-daynight',        xfirst(ircut,'IrcutFilterType'));
+      setSlider('sl-dn-sensitivity', 'v-dn-sensitivity', xfirst(ircut,'dayToNightFilterLevel'), 4);
+    }
 
-    // BLC
-    setToggle('tog-blc', xval('BLC', 'enabled') === 'true');
+    // Flip/Mirror
+    if (flip) {
+      const en = xfirst(flip,'enabled');
+      const st = xfirst(flip,'ImageFlipStyle');
+      setSelect('sel-flip', (en === 'true' && st) ? st : 'OFF');
+    }
 
-    // Dehaze
-    setToggle('tog-dehaze', xval('Dehaze', 'DehazeMode') === 'open');
-    setSlider('sl-dehaze-level', 'v-dehaze-level', xval('Dehaze', 'DehazeLevel'), 80);
-
-    // Focus
-    const focusStyle = xval('FocusConfiguration', 'focusStyle');
-    if (focusStyle) document.getElementById('sel-focus').value = focusStyle;
-
-    updateWdrBlc();
-    updateDehazeLevel();
     addLog('Camera settings loaded', 'ok');
   } catch (e) {
-    addLog(`Settings load failed: ${e.message}`, 'err');
+    addLog(`Settings load error: ${e.message}`, 'err');
   }
 }
 
-// ── Camera control wiring ─────────────────────────
-
-// Simple sliders (debounced 300ms)
+// ── Slider wiring ─────────────────────────────────
 [
-  ['sl-brightness', 'v-brightness', 'brightness'],
-  ['sl-contrast',   'v-contrast',   'contrast'],
-  ['sl-saturation', 'v-saturation', 'saturation'],
-  ['sl-sharpness',  'v-sharpness',  'sharpness'],
-  ['sl-noise',      'v-noise',      'noise'],
+  ['sl-brightness',     'v-brightness',     'brightness'],
+  ['sl-contrast',       'v-contrast',       'contrast'],
+  ['sl-saturation',     'v-saturation',     'saturation'],
+  ['sl-sharpness',      'v-sharpness',      'sharpness'],
+  ['sl-noise',          'v-noise',          'noise'],
+  ['sl-hlc-level',      'v-hlc-level',      'hlc_level'],
+  ['sl-noise-spatial',  'v-noise-spatial',  'noise_spatial'],
+  ['sl-noise-temporal', 'v-noise-temporal', 'noise_temporal'],
+  ['sl-dehaze-level',   'v-dehaze-level',   'dehaze_level'],
+  ['sl-wdr-level',      'v-wdr-level',      'wdr_level'],
+  ['sl-dn-sensitivity', 'v-dn-sensitivity', 'daynight_sensitivity'],
 ].forEach(([slId, vId, cmd]) => {
-  const sl   = document.getElementById(slId);
-  const vl   = document.getElementById(vId);
+  const sl = document.getElementById(slId);
+  const vl = document.getElementById(vId);
+  if (!sl) return;
   const send = debounce(v => sendCamera(cmd, v), 300);
   sl.addEventListener('input', () => { vl.textContent = sl.value; send(sl.value); });
 });
 
-// WDR level slider
-const slWdr  = document.getElementById('sl-wdr-level');
-const vWdr   = document.getElementById('v-wdr-level');
-const dWdr   = debounce(() => {
-  const on = document.getElementById('tog-wdr').classList.contains('on');
-  sendCamera('wdr', on ? 'open' : 'close', slWdr.value);
-}, 300);
-slWdr.addEventListener('input', () => { vWdr.textContent = slWdr.value; dWdr(); });
+// ── Select wiring ─────────────────────────────────
+[
+  ['sel-focus',      'focus'],
+  ['sel-focus-dist', 'focus_min_dist'],
+  ['sel-flip',       'flip'],
+].forEach(([selId, cmd]) => {
+  const el = document.getElementById(selId);
+  if (!el) return;
+  el.addEventListener('change', function () { sendCamera(cmd, this.value); });
+});
 
-// Dehaze level slider
-const slDehaze = document.getElementById('sl-dehaze-level');
-const vDehaze  = document.getElementById('v-dehaze-level');
-const dDehaze  = debounce(() => {
-  const on = document.getElementById('tog-dehaze').classList.contains('on');
-  sendCamera('dehaze', on ? 'open' : 'close', slDehaze.value);
-}, 300);
-slDehaze.addEventListener('input', () => { vDehaze.textContent = slDehaze.value; dDehaze(); });
+// Day/Night — send + toggle sensitivity row
+document.getElementById('sel-daynight').addEventListener('change', function () {
+  sendCamera('daynight', this.value);
+  updateDayNight();
+});
 
-// Toggle: WDR
-document.getElementById('tog-wdr').addEventListener('click', function () {
-  const on = !this.classList.contains('on');
-  setToggle('tog-wdr', on);
-  updateWdrBlc();
-  sendCamera('wdr', on ? 'open' : 'close', slWdr.value);
-  if (on) {
-    setToggle('tog-blc', false);
-    sendCamera('blc', 'false');
+// WDR mode — send + toggle level row + mutex with HLC
+document.getElementById('sel-super-wdr').addEventListener('change', async function () {
+  if (this.value !== 'close') {
+    // Mutex: WDR and HLC can't be on together
+    document.getElementById('chk-hlc').checked = false;
+    await sendCamera('hlc', 'false');
+    updateHLC();
   }
+  sendCamera('super_wdr', this.value);
+  updateWDR();
 });
 
-// Toggle: BLC (disabled when WDR is on)
-document.getElementById('tog-blc').addEventListener('click', function () {
-  if (this.disabled) return;
-  const on = !this.classList.contains('on');
-  setToggle('tog-blc', on);
-  sendCamera('blc', on ? 'true' : 'false');
+// WB mode — send only (manual gains removed)
+document.getElementById('sel-wb').addEventListener('change', function () {
+  sendCamera('wb', this.value);
 });
 
-// Toggle: Dehaze
-document.getElementById('tog-dehaze').addEventListener('click', function () {
-  const on = !this.classList.contains('on');
-  setToggle('tog-dehaze', on);
-  updateDehazeLevel();
-  sendCamera('dehaze', on ? 'open' : 'close', slDehaze.value);
+// Noise mode — also toggles level row visibility
+document.getElementById('sel-noise-mode').addEventListener('change', function () {
+  updateNoiseLevel();
+  sendCamera('noise_mode', this.value);
 });
 
-// Selects
-document.getElementById('sel-daynight').addEventListener('change', function () { sendCamera('daynight', this.value); });
-document.getElementById('sel-wb')      .addEventListener('change', function () { sendCamera('wb',       this.value); });
-document.getElementById('sel-flip')    .addEventListener('change', function () { sendCamera('flip',     this.value); });
-document.getElementById('sel-focus')   .addEventListener('change', function () { sendCamera('focus',    this.value); });
+// Defog — sends mode and toggles dehaze level row visibility
+document.getElementById('sel-defog').addEventListener('change', function () {
+  sendCamera('dehaze', this.value);
+  updateDefog();
+});
 
-// Buttons
+// ── Toggle (checkbox) wiring ──────────────────────
+document.getElementById('chk-hlc').addEventListener('change', async function () {
+  if (this.checked) {
+    // Mutex: HLC and WDR can't be on together
+    document.getElementById('sel-super-wdr').value = 'close';
+    await sendCamera('super_wdr', 'close');
+    updateWDR();
+  }
+  sendCamera('hlc', this.checked ? 'true' : 'false');
+  updateHLC();
+});
+
+// ── Button wiring ─────────────────────────────────
 document.getElementById('btn-focus-trigger').addEventListener('click', () => sendCamera('focus_trigger', ''));
 document.getElementById('btn-cam-refresh')  .addEventListener('click', loadCameraSettings);
+document.getElementById('btn-cam-reset').addEventListener('click', () => {
+  sendCamera('reset', '').then(() => setTimeout(loadCameraSettings, 1500));
+});
 
 // ── Sidebar / tabs ────────────────────────────────
-document.getElementById("sidebar-toggle").addEventListener("click", () => {
-  document.getElementById("sidebar").classList.toggle("collapsed");
+document.getElementById('sidebar-toggle').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('collapsed');
 });
-document.querySelectorAll(".tab-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    document.querySelectorAll(".tab-pane").forEach(t => t.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
   });
 });
 
-// ── PTZ buttons / keyboard / scroll / click ───────
-document.getElementById("btn-connect").addEventListener("click", connect);
-speedSlider.addEventListener("input", () => {
-  document.getElementById("speed-val").textContent = speedSlider.value;
+// ── PTZ keyboard / scroll / click ─────────────────
+document.getElementById('btn-connect').addEventListener('click', connect);
+speedSlider.addEventListener('input', () => {
+  document.getElementById('speed-val').textContent = speedSlider.value;
 });
-
-document.querySelectorAll("[data-cmd]").forEach(btn => {
+document.querySelectorAll('[data-cmd]').forEach(btn => {
   const cmd = btn.dataset.cmd;
-  btn.addEventListener("mousedown",  () => startPTZ(cmd));
-  btn.addEventListener("mouseup",    () => stopPTZ(cmd));
-  btn.addEventListener("mouseleave", () => stopPTZ(cmd));
-  btn.addEventListener("touchstart", e => { e.preventDefault(); startPTZ(cmd); }, { passive: false });
-  btn.addEventListener("touchend",   () => stopPTZ(cmd));
+  btn.addEventListener('mousedown',  () => startPTZ(cmd));
+  btn.addEventListener('mouseup',    () => stopPTZ(cmd));
+  btn.addEventListener('mouseleave', () => stopPTZ(cmd));
+  btn.addEventListener('touchstart', e => { e.preventDefault(); startPTZ(cmd); }, { passive: false });
+  btn.addEventListener('touchend',   () => stopPTZ(cmd));
 });
-
 const keyMap = {
-  ArrowLeft: "pan_left",  ArrowRight: "pan_right",
-  ArrowUp:   "tilt_up",   ArrowDown:  "tilt_down",
-  KeyW: "tilt_up",   KeyS: "tilt_down",
-  KeyA: "pan_left",  KeyD: "pan_right",
-  Equal: "zoom_in",  Minus: "zoom_out",
-  Space: "stop",     KeyH: "preset_home",
+  ArrowLeft:'pan_left', ArrowRight:'pan_right', ArrowUp:'tilt_up', ArrowDown:'tilt_down',
+  KeyW:'tilt_up', KeyS:'tilt_down', KeyA:'pan_left', KeyD:'pan_right',
+  Equal:'zoom_in', Minus:'zoom_out', Space:'stop', KeyH:'preset_home',
 };
-document.addEventListener("keydown", e => {
-  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.repeat) return;
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.repeat) return;
   const cmd = keyMap[e.code];
   if (cmd) { e.preventDefault(); startPTZ(cmd); }
 });
-document.addEventListener("keyup", e => {
-  const cmd = keyMap[e.code];
-  if (cmd) stopPTZ(cmd);
-});
+document.addEventListener('keyup', e => { const cmd = keyMap[e.code]; if (cmd) stopPTZ(cmd); });
 
-document.getElementById("video-panel").addEventListener("wheel", e => {
-  e.preventDefault();
-  sendPTZ(e.deltaY < 0 ? "zoom_in" : "zoom_out");
+document.getElementById('video-panel').addEventListener('wheel', e => {
+  e.preventDefault(); sendPTZ(e.deltaY < 0 ? 'zoom_in' : 'zoom_out');
 }, { passive: false });
 
-videoEl.addEventListener("click", async e => {
+videoEl.addEventListener('click', async e => {
   if (!streamActive) return;
   const rect = videoEl.getBoundingClientRect();
   const nx = (e.clientX - (rect.left + rect.width  / 2)) / (rect.width  / 2);
   const ny = (e.clientY - (rect.top  + rect.height / 2)) / (rect.height / 2);
   try {
-    await fetch(`http://${PTZ_HOST}/ptz/delta?pan=${Math.round(nx*45)}&tilt=${Math.round(ny*45)}`);
-    dotPtz.className = "dot ok";
-    lblPtz.textContent = "AIM";
-    setTimeout(() => { dotPtz.className = "dot"; lblPtz.textContent = "—"; }, 500);
+    await fetch(`/ptz/delta?pan=${Math.round(nx*45)}&tilt=${Math.round(ny*45)}`);
+    dotPtz.className = 'dot ok'; lblPtz.textContent = 'AIM';
+    setTimeout(() => { dotPtz.className = 'dot'; lblPtz.textContent = '—'; }, 500);
   } catch (_) {}
 });
 
-// ── Live edge (keeps stream latency low) ──────────
+// ── Live edge ─────────────────────────────────────
 const TARGET_LAT = 0.15, MAX_LAT = 0.5;
 setInterval(() => {
   if (!streamActive || videoEl.readyState < 2 || !videoEl.buffered.length) return;
   try {
-    const edge   = videoEl.buffered.end(videoEl.buffered.length - 1);
+    const edge = videoEl.buffered.end(videoEl.buffered.length - 1);
     const behind = edge - videoEl.currentTime;
     const ms = Math.round(behind * 1000);
     if (ms >= 0) {
       latEl.textContent = ms;
-      latEl.style.color = ms < 300 ? "var(--ok)" : ms < 600 ? "var(--warn)" : "var(--err)";
+      latEl.style.color = ms < 300 ? 'var(--ok)' : ms < 600 ? 'var(--warn)' : 'var(--err)';
     }
     if (behind > MAX_LAT) videoEl.currentTime = edge - TARGET_LAT;
   } catch (_) {}
 }, 200);
 
 // ── Start ─────────────────────────────────────────
-addLog("Operator interface loaded", "ok");
+addLog('Operator interface loaded', 'ok');
+loadCameraSettings();
 connect();
 </script>
 </body>
