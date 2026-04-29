@@ -271,7 +271,7 @@
       <div class="sec">Stream</div>
       <div class="field">
         <label>MediaMTX host</label>
-        <input type="text" id="cfg-host" value="192.168.2.1">
+        <input type="text" id="cfg-host" value="" placeholder="Enter Tailscale IP">
       </div>
       <div class="field">
         <label>Stream path</label>
@@ -564,7 +564,7 @@
 
 <script>
 // ── Config ──────────────────────────────────────
-let MEDIAMTX_HOST = '192.168.2.1';
+let MEDIAMTX_HOST = '';
 let STREAM_PATH   = 'crane';
 
 // ── State ────────────────────────────────────────
