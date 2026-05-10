@@ -6,7 +6,13 @@
       "PowerShell(py --version)",
       "PowerShell($proc = Start-Process -FilePath py -ArgumentList \"C:\\\\Users\\\\tahaa\\\\Documents\\\\Bacheloroppgåve\\\\cranecam_gui\\\\server.py\" -PassThru -RedirectStandardOutput \"$env:TEMP\\\\srv_out.log\" -RedirectStandardError \"$env:TEMP\\\\srv_err.log\" -NoNewWindow; Start-Sleep -Seconds 4; if \\($proc.HasExited\\) { Write-Output \"EXITED with code $\\($proc.ExitCode\\)\" } else { Write-Output \"RUNNING \\(PID $\\($proc.Id\\)\\) — killing\"; Stop-Process -Id $proc.Id -Force }; Write-Output \"--- STDOUT ---\"; Get-Content \"$env:TEMP\\\\srv_out.log\" -ErrorAction SilentlyContinue; Write-Output \"--- STDERR ---\"; Get-Content \"$env:TEMP\\\\srv_err.log\" -ErrorAction SilentlyContinue)",
       "Skill(anthropic-skills:typst)",
-      "Skill(anthropic-skills:typst:*)"
+      "Skill(anthropic-skills:typst:*)",
+      "WebFetch(domain:www.waveshare.com)",
+      "Bash(curl -s -A \"Mozilla/5.0 \\(X11; Linux x86_64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0 Safari/537.36\" -L \"https://www.waveshare.com/wiki/RM520N-GL_5G_for_Jetson_Orin\" -o /tmp/waveshare.html -w \"HTTP %{http_code}\\\\nsize %{size_download}\\\\n\")",
+      "PowerShell($ProgressPreference='SilentlyContinue'; $tmp = \"$env:TEMP\\\\rm520n-driver.zip\"; Invoke-WebRequest -Uri 'https://files.waveshare.com/wiki/RM520N-GL/Driver/RM520N-RM530N-Driver.zip' -UseBasicParsing -Headers @{'User-Agent'='Mozilla/5.0'} -OutFile $tmp; Write-Output \"downloaded: $\\(\\(Get-Item $tmp\\).Length\\) bytes to $tmp\"; $extract = \"$env:TEMP\\\\rm520n-driver\"; if \\(Test-Path $extract\\) { Remove-Item -Recurse -Force $extract }; Expand-Archive -Path $tmp -DestinationPath $extract; Get-ChildItem -Recurse $extract | Select-Object FullName, Length | Format-Table -AutoSize | Out-String -Width 200)",
+      "PowerShell($ProgressPreference='SilentlyContinue'; $r = Invoke-WebRequest -Uri 'https://api.github.com/search/code?q=qmi_wwan_q+filename:qmi_wwan_q.c&per_page=20' -UseBasicParsing -Headers @{'User-Agent'='Mozilla/5.0';'Accept'='application/vnd.github+json'}; \\($r.Content | ConvertFrom-Json\\).items | Select-Object -First 20 | ForEach-Object { \"{0,-50} {1}\" -f $_.repository.full_name, $_.html_url })",
+      "PowerShell($ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/ChaingTsung/QMI_WWAN_Q/HEAD/src/Makefile' -UseBasicParsing -Headers @{'User-Agent'='Mozilla/5.0'} -OutFile \"$env:TEMP\\\\qmi_wwan_q\\\\src_Makefile.txt\"; Get-Content \"$env:TEMP\\\\qmi_wwan_q\\\\src_Makefile.txt\")",
+      "PowerShell(ssh jetson-5g@192.168.10.133 \"uname -r; echo '---'; lsusb | grep 2c7c; echo '---'; ls /dev/cdc-wdm0; echo '---'; ls /tmp/quectel-cm/quectel-CM; echo '---'; ls /lib/modules/`$\\(uname -r\\)/extra/qmi_wwan.ko; echo '---'; lsmod | grep -E '^\\(qmi_wwan|cdc_wdm\\)'; echo '---'; mmcli -L\")"
     ]
   }
 }

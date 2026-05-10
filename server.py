@@ -341,13 +341,10 @@ def camera():
     elif cmd == 'dehaze_level':
         ok, r = cam_put(IMG_DEHAZE_URL, img_replace_in(cam_get(IMG_DEHAZE_URL), 'Dehaze', 'DehazeLevel', value))
 
-    # ── Day/Night Switch ──────────────────────────────────────────────────────
+# ── Day/Night Switch ──────────────────────────────────────────────────────
     elif cmd == 'daynight':
-        # IrcutFilterType values: day | night | auto
+        # IrcutFilterType controls the IR cut filter mode: day (color), night (B/W), or auto.
         ok, r = ircut_modify(lambda x: img_replace(x, 'IrcutFilterType', value))
-    elif cmd == 'daynight_sensitivity':
-        # dayToNightFilterLevel values (ISAPI spec): low | normal | high
-        ok, r = ircut_modify(lambda x: img_replace(x, 'dayToNightFilterLevel', value))
 
     # ── General ───────────────────────────────────────────────────────────────
     elif cmd == 'flip':
