@@ -1,11 +1,18 @@
-# Crane Camera — Operator Interface
+# CraneCam — Operator Interface
 
-Web-based operator GUI for viewing a live camera stream and sending PTZ commands.
+Web-based operator interface for the 5G crane camera system. Runs on the NVIDIA Jetson Orin Nano and is accessible from any browser on the same network.
 
 ```
-[RTSP camera / source] → [MediaMTX] → [WebRTC] → [operator.html]
-                                                         ↓
-                                              [PTZ HTTP endpoint]
+ZCM2133 camera (RTSP)
+    └─ MediaMTX (Jetson) ──WebRTC──► operator.html
+                                          │
+                                    PTZ / camera API
+                                          │
+                                    server.py (Flask)
+                                          │
+                              ┌───────────┴───────────┐
+                         Arduino Uno             ISAPI (HTTP)
+                         (pan / tilt)             (zoom / image)
 ```
 
 ---
@@ -14,80 +21,60 @@ Web-based operator GUI for viewing a live camera stream and sending PTZ commands
 
 | File | Purpose |
 |------|---------|
-| `operator.html` | Operator GUI — WebRTC video, PTZ d-pad, zoom, presets, event log |
-| `mediamtx.yml`  | MediaMTX config — low-latency WebRTC relay for an RTSP source |
-
----
-
-## Prerequisites
-
-### MediaMTX (WebRTC relay)
-
-Required if your camera outputs RTSP and the browser needs WebRTC.
-
-Download the Windows zip from:
-https://github.com/bluenviron/mediamtx/releases/latest
-
-Look for: `mediamtx_vX.X.X_windows_amd64.zip`
-
-Extract `mediamtx.exe` into this folder (next to `mediamtx.yml`).
-
-Or with winget:
-```
-winget install bluenviron.mediamtx
-```
+| `operator.html` | Single-page operator interface — WebRTC video, PTZ controls, camera image settings, event log |
+| `server.py` | Flask server — serves `operator.html`, proxies PTZ commands to Arduino, proxies image settings to camera ISAPI |
+| `mediamtx.yml` | MediaMTX configuration — accepts RTSP from camera, outputs WebRTC on port 8889 |
 
 ---
 
 ## Setup
 
-### 1. Start MediaMTX
+### 1. Install Python dependencies
 
+```bash
+pip install flask requests pyserial --break-system-packages
 ```
-mediamtx mediamtx.yml
+
+### 2. Start MediaMTX
+
+```bash
+./mediamtx mediamtx.yml
 ```
 
 MediaMTX listens on:
-- **8554** — RTSP input
-- **8889** — WebRTC output (WHEP)
+- **8554** — RTSP input (camera pushes here)
+- **8889** — WebRTC output (WHEP, browser connects here)
 
-### 2. Push your RTSP stream into MediaMTX
+### 3. Start the server
 
-Point your camera or FFmpeg at:
-```
-rtsp://localhost:8554/crane
-```
-
-Example with FFmpeg (test pattern):
-```
-ffmpeg -re -f lavfi -i testsrc2=size=1920x1080:rate=30 \
-  -c:v libx264 -preset ultrafast -tune zerolatency \
-  -b:v 4000k -g 30 -f rtsp -rtsp_transport tcp rtsp://localhost:8554/crane
+```bash
+python3 server.py
 ```
 
-### 3. Open the operator page
+The server starts on port 5000. Open `http://<jetson-ip>:5000` in a browser.
 
-Open `operator.html` in Chrome or Edge (double-click or drag to browser).
+### 4. Connect
 
-In the **Connection** panel, set:
-- **MediaMTX host** — IP of the machine running MediaMTX (default `192.168.1.147`)
-- **Stream path** — RTSP path (default `crane`)
-- **PTZ server host** — `host:port` of your PTZ HTTP endpoint (default `localhost:5000`)
+In the **CONN** tab, enter the Jetson's Tailscale IP and click **CONNECT**.
 
-Click **CONNECT**.
+PTZ commands and camera settings are sent back to the same server — no separate address needed.
 
 ---
 
 ## PTZ API
 
-The GUI sends HTTP GET requests to:
+The interface sends HTTP GET requests to the server:
+
 ```
-http://<PTZ_HOST>/ptz?cmd=<command>&speed=<1-100>
+GET /ptz?cmd=<command>&speed=<1-100>
+GET /ptz/delta?pan=<degrees>&tilt=<degrees>
 ```
 
-Commands: `pan_left`, `pan_right`, `tilt_up`, `tilt_down`, `zoom_in`, `zoom_out`, `stop`, `preset_home`
+Pan/tilt commands: `pan_left`, `pan_right`, `tilt_up`, `tilt_down`, `preset_home`, `stop`
+Zoom commands: `zoom_in`, `zoom_out`
 
-The PTZ endpoint must respond with HTTP 200 on success. Response body is ignored.
+Pan and tilt go to the Arduino over serial (`P<angle>` / `T<angle>`).
+Zoom goes directly to the camera via ISAPI.
 
 ---
 
@@ -97,14 +84,10 @@ The PTZ endpoint must respond with HTTP 200 on success. Response body is ignored
 |-----|--------|
 | Arrow keys / WASD | Pan / tilt |
 | `+` / `-` | Zoom in / out |
-| Space | Stop |
+| `Space` | Stop |
 | `H` | Home preset |
-
----
-
-## Two-machine setup (camera PC vs operator PC)
-
-Run MediaMTX on the camera PC. Open `operator.html` on the operator PC and set **MediaMTX host** to the camera PC's IP address.
+| Scroll wheel on video | Zoom |
+| Click on video | Aim to clicked point |
 
 ---
 
@@ -112,6 +95,6 @@ Run MediaMTX on the camera PC. Open `operator.html` on the operator PC and set *
 
 | Port | Service |
 |------|---------|
-| 8554 | RTSP (camera → MediaMTX) |
-| 8889 | WebRTC (MediaMTX → browser) |
-| 5000 | PTZ HTTP endpoint (default, configurable in GUI) |
+| 5000 | Flask server (operator interface + PTZ/camera API) |
+| 8554 | RTSP input to MediaMTX |
+| 8889 | WebRTC output from MediaMTX (WHEP) |

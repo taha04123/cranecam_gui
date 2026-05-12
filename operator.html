@@ -253,7 +253,8 @@
 
   <div id="video-panel">
     <video id="stream" autoplay playsinline muted></video>
-    <div id="overlay">
+    <div id="key-debug" style="position:absolute;top:8px;left:8px;background:#000a;color:#0af;font-family:monospace;font-size:14px;padding:6px 10px;border-radius:4px;z-index:99;pointer-events:none">press a key</div>
+<div id="overlay">
       <div class="spinner"></div>
       <p id="overlay-msg">Connecting…</p>
     </div>
@@ -702,10 +703,7 @@ function updateNoiseLevel() {
   document.getElementById('noise-spatial-row').style.display  = v === 'advanced' ? 'flex' : 'none';
   document.getElementById('noise-temporal-row').style.display = v === 'advanced' ? 'flex' : 'none';
 }
-function updateDayNight() {
-  const auto = document.getElementById('sel-daynight').value === 'auto';
-  document.getElementById('dn-sensitivity-row').style.display = auto ? 'flex' : 'none';
-}
+
 function updateWDR() {
   const on = document.getElementById('sel-super-wdr').value !== 'close';
   document.getElementById('wdr-level-row').style.display = on ? 'flex' : 'none';
@@ -792,7 +790,7 @@ async function loadCameraSettings() {
       setSelect('sel-super-wdr', xfirst(wdr,'mode'));
       setSlider('sl-wdr-level', 'v-wdr-level', xfirst(wdr,'WDRLevel'), 5);
     }
-    updateDayNight(); updateWDR(); updateHLC();
+    updateWDR(); updateHLC();
 
     // Image Enhancement — noise from dedicated /noiseReduce endpoint
     // mode values: close | general | advanced
@@ -809,10 +807,8 @@ async function loadCameraSettings() {
     }
     updateDefog();
 
-    // Day/Night — sensitivity: dayToNightFilterLevel values: low | normal | high
     if (ircut) {
-      setSelect('sel-daynight',        xfirst(ircut,'IrcutFilterType'));
-      setSlider('sl-dn-sensitivity', 'v-dn-sensitivity', xfirst(ircut,'dayToNightFilterLevel'), 4);
+      setSelect('sel-daynight', xfirst(ircut,'IrcutFilterType'));
     }
 
     // Flip/Mirror
@@ -828,6 +824,45 @@ async function loadCameraSettings() {
   }
 }
 
+async function applyDefaultsToCamera() {
+  addLog('Applying hardcoded defaults…', 'info');
+  setSlider('sl-brightness',  'v-brightness',  50, 50);
+  setSlider('sl-contrast',    'v-contrast',    50, 50);
+  setSlider('sl-saturation',  'v-saturation',  50, 50);
+  setSlider('sl-sharpness',   'v-sharpness',   50, 50);
+  setSlider('sl-hlc-level',   'v-hlc-level',   50, 50);
+  setSlider('sl-wdr-level',   'v-wdr-level',   5,  5);
+  setSlider('sl-noise',       'v-noise',       50, 50);
+  setSelect('sel-focus',      'AUTO');
+  setSelect('sel-focus-dist', '300');
+  setSelect('sel-wb',         'auto1');
+  setCheck ('chk-hlc',        false);
+  setSelect('sel-super-wdr',  'close');
+  setSelect('sel-noise-mode', 'general');
+  setSelect('sel-defog',      'close');
+  setSelect('sel-daynight',   'auto');
+  setSelect('sel-flip',       'OFF');
+  updateHLC(); updateWDR(); updateNoiseLevel(); updateDefog();
+
+  await Promise.all([
+    sendCamera('brightness',    50),
+    sendCamera('contrast',      50),
+    sendCamera('saturation',    50),
+    sendCamera('sharpness',     50),
+    sendCamera('focus',         'AUTO'),
+    sendCamera('focus_min_dist','300'),
+    sendCamera('wb',            'auto1'),
+    sendCamera('hlc',           'false'),
+    sendCamera('super_wdr',     'close'),
+    sendCamera('noise_mode',    'general'),
+    sendCamera('noise',         50),
+    sendCamera('dehaze',        'close'),
+    sendCamera('daynight',      'auto'),
+    sendCamera('flip',          'OFF'),
+  ]);
+  addLog('Defaults applied', 'ok');
+}
+
 // ── Slider wiring ─────────────────────────────────
 [
   ['sl-brightness',     'v-brightness',     'brightness'],
@@ -840,7 +875,6 @@ async function loadCameraSettings() {
   ['sl-noise-temporal', 'v-noise-temporal', 'noise_temporal'],
   ['sl-dehaze-level',   'v-dehaze-level',   'dehaze_level'],
   ['sl-wdr-level',      'v-wdr-level',      'wdr_level'],
-  ['sl-dn-sensitivity', 'v-dn-sensitivity', 'daynight_sensitivity'],
 ].forEach(([slId, vId, cmd]) => {
   const sl = document.getElementById(slId);
   const vl = document.getElementById(vId);
@@ -860,10 +894,8 @@ async function loadCameraSettings() {
   el.addEventListener('change', function () { sendCamera(cmd, this.value); });
 });
 
-// Day/Night — send + toggle sensitivity row
 document.getElementById('sel-daynight').addEventListener('change', function () {
   sendCamera('daynight', this.value);
-  updateDayNight();
 });
 
 // WDR mode — send + toggle level row + mutex with HLC
@@ -910,8 +942,18 @@ document.getElementById('chk-hlc').addEventListener('change', async function () 
 // ── Button wiring ─────────────────────────────────
 document.getElementById('btn-focus-trigger').addEventListener('click', () => sendCamera('focus_trigger', ''));
 document.getElementById('btn-cam-refresh')  .addEventListener('click', loadCameraSettings);
-document.getElementById('btn-cam-reset').addEventListener('click', () => {
-  sendCamera('reset', '').then(() => setTimeout(loadCameraSettings, 1500));
+document.getElementById('btn-cam-reset').addEventListener('click', async () => {
+  addLog('Resetting to defaults…', 'info');
+  try {
+    const res  = await fetch('/camera?cmd=reset');
+    const data = await res.json();
+    if (data.ok) {
+      addLog('ISAPI restore sent — reloading in 1.5s', 'ok');
+      setTimeout(loadCameraSettings, 1500);
+      return;
+    }
+  } catch (_) {}
+  await applyDefaultsToCamera();
 });
 
 // ── Sidebar / tabs ────────────────────────────────
@@ -942,15 +984,17 @@ document.querySelectorAll('[data-cmd]').forEach(btn => {
 });
 const keyMap = {
   ArrowLeft:'pan_left', ArrowRight:'pan_right', ArrowUp:'tilt_up', ArrowDown:'tilt_down',
-  KeyW:'tilt_up', KeyS:'tilt_down', KeyA:'pan_left', KeyD:'pan_right',
-  Equal:'zoom_in', Minus:'zoom_out', Space:'stop', KeyH:'preset_home',
+  w:'tilt_up', s:'tilt_down', a:'pan_left', d:'pan_right',
+  W:'tilt_up', S:'tilt_down', A:'pan_left', D:'pan_right',
+  '+':'zoom_in', '-':'zoom_out', ' ':'stop', h:'preset_home', H:'preset_home',
 };
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.repeat) return;
-  const cmd = keyMap[e.code];
+  const isTyping = (e.target.tagName === 'INPUT' && e.target.type === 'text') || e.target.tagName === 'TEXTAREA';
+  if (isTyping || e.repeat) return;
+  const cmd = keyMap[e.key];
   if (cmd) { e.preventDefault(); startPTZ(cmd); }
 });
-document.addEventListener('keyup', e => { const cmd = keyMap[e.code]; if (cmd) stopPTZ(cmd); });
+document.addEventListener('keyup', e => { const cmd = keyMap[e.key]; if (cmd) stopPTZ(cmd); });
 
 document.getElementById('video-panel').addEventListener('wheel', e => {
   e.preventDefault(); sendPTZ(e.deltaY < 0 ? 'zoom_in' : 'zoom_out');
@@ -983,6 +1027,11 @@ setInterval(() => {
     if (behind > MAX_LAT) videoEl.currentTime = edge - TARGET_LAT;
   } catch (_) {}
 }, 200);
+
+
+document.addEventListener('keydown', e => {
+  document.getElementById('key-debug').textContent = `key="${e.key}"  code=${e.code}`;
+}, true);
 
 // ── Start ─────────────────────────────────────────
 addLog('Operator interface loaded', 'ok');
