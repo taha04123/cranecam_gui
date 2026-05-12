@@ -253,7 +253,8 @@
 
   <div id="video-panel">
     <video id="stream" autoplay playsinline muted></video>
-    <div id="overlay">
+    <div id="key-debug" style="position:absolute;top:8px;left:8px;background:#000a;color:#0af;font-family:monospace;font-size:14px;padding:6px 10px;border-radius:4px;z-index:99;pointer-events:none">press a key</div>
+<div id="overlay">
       <div class="spinner"></div>
       <p id="overlay-msg">Connecting…</p>
     </div>
@@ -731,6 +732,10 @@ function updateNoiseLevel() {
   document.getElementById('noise-spatial-row').style.display  = v === 'advanced' ? 'flex' : 'none';
   document.getElementById('noise-temporal-row').style.display = v === 'advanced' ? 'flex' : 'none';
 }
+function updateDayNight() {
+  const auto = document.getElementById('sel-daynight').value === 'auto';
+  document.getElementById('dn-sensitivity-row').style.display = auto ? 'flex' : 'none';
+}
 function updateWDR() {
   const on = document.getElementById('sel-super-wdr').value !== 'close';
   document.getElementById('wdr-level-row').style.display = on ? 'flex' : 'none';
@@ -845,6 +850,45 @@ async function loadCameraSettings() {
   }
 }
 
+async function applyDefaultsToCamera() {
+  addLog('Applying hardcoded defaults…', 'info');
+  setSlider('sl-brightness',  'v-brightness',  50, 50);
+  setSlider('sl-contrast',    'v-contrast',    50, 50);
+  setSlider('sl-saturation',  'v-saturation',  50, 50);
+  setSlider('sl-sharpness',   'v-sharpness',   50, 50);
+  setSlider('sl-hlc-level',   'v-hlc-level',   50, 50);
+  setSlider('sl-wdr-level',   'v-wdr-level',   5,  5);
+  setSlider('sl-noise',       'v-noise',       50, 50);
+  setSelect('sel-focus',      'AUTO');
+  setSelect('sel-focus-dist', '300');
+  setSelect('sel-wb',         'auto1');
+  setCheck ('chk-hlc',        false);
+  setSelect('sel-super-wdr',  'close');
+  setSelect('sel-noise-mode', 'general');
+  setSelect('sel-defog',      'close');
+  setSelect('sel-daynight',   'auto');
+  setSelect('sel-flip',       'OFF');
+  updateHLC(); updateWDR(); updateNoiseLevel(); updateDefog();
+
+  await Promise.all([
+    sendCamera('brightness',    50),
+    sendCamera('contrast',      50),
+    sendCamera('saturation',    50),
+    sendCamera('sharpness',     50),
+    sendCamera('focus',         'AUTO'),
+    sendCamera('focus_min_dist','300'),
+    sendCamera('wb',            'auto1'),
+    sendCamera('hlc',           'false'),
+    sendCamera('super_wdr',     'close'),
+    sendCamera('noise_mode',    'general'),
+    sendCamera('noise',         50),
+    sendCamera('dehaze',        'close'),
+    sendCamera('daynight',      'auto'),
+    sendCamera('flip',          'OFF'),
+  ]);
+  addLog('Defaults applied', 'ok');
+}
+
 // ── Slider wiring ─────────────────────────────────
 // [slider-id, display-id, camera-command]
 // Debounced 300ms — prevents flooding the camera while the user drags.
@@ -921,55 +965,8 @@ document.getElementById('chk-hlc').addEventListener('change', async function () 
 // ── Button wiring ─────────────────────────────────
 document.getElementById('btn-focus-trigger').addEventListener('click', () => sendCamera('focus_trigger', ''));
 document.getElementById('btn-cam-refresh')  .addEventListener('click', loadCameraSettings);
-
-// Reset: explicitly send every setting to its default value and update the UI.
-// More reliable than the camera's restore endpoint, which is broken on some firmware.
-document.getElementById('btn-cam-reset').addEventListener('click', async () => {
-  if (!confirm('Reset all image settings to factory defaults?')) return;
-
-  // Update UI immediately so it reflects the new values right away
-  setSlider('sl-brightness',     'v-brightness',     50,  50);
-  setSlider('sl-contrast',       'v-contrast',       50,  50);
-  setSlider('sl-saturation',     'v-saturation',     50,  50);
-  setSlider('sl-sharpness',      'v-sharpness',      50,  50);
-  setSelect('sel-focus',         'AUTO');
-  setSelect('sel-focus-dist',    '300');
-  setSelect('sel-wb',            'auto1');
-  setCheck ('chk-hlc',           false);
-  setSlider('sl-hlc-level',      'v-hlc-level',      50,  50);
-  setSelect('sel-super-wdr',     'close');
-  setSlider('sl-wdr-level',      'v-wdr-level',      5,   5);
-  setSelect('sel-noise-mode',    'general');
-  setSlider('sl-noise',          'v-noise',          50,  50);
-  setSlider('sl-noise-spatial',  'v-noise-spatial',  50,  50);
-  setSlider('sl-noise-temporal', 'v-noise-temporal', 50,  50);
-  setSelect('sel-defog',         'close');
-  setSlider('sl-dehaze-level',   'v-dehaze-level',   80,  80);
-  setSelect('sel-daynight',      'auto');
-  setSelect('sel-flip',          'OFF');
-  updateWDR(); updateHLC(); updateNoiseLevel(); updateDefog();
-
-  // Send all defaults to the camera in parallel
-  await Promise.all([
-    sendCamera('brightness',   '50'),
-    sendCamera('contrast',     '50'),
-    sendCamera('saturation',   '50'),
-    sendCamera('sharpness',    '50'),
-    sendCamera('focus',        'AUTO'),
-    sendCamera('focus_min_dist','300'),
-    sendCamera('wb',           'auto1'),
-    sendCamera('hlc',          'false'),
-    sendCamera('hlc_level',    '50'),
-    sendCamera('super_wdr',    'close'),
-    sendCamera('wdr_level',    '5'),
-    sendCamera('noise_mode',   'general'),
-    sendCamera('noise',        '50'),
-    sendCamera('dehaze',       'close'),
-    sendCamera('daynight',     'auto'),
-    sendCamera('flip',         'OFF'),
-  ]);
-
-  addLog('Reset to defaults complete', 'ok');
+document.getElementById('btn-cam-reset').addEventListener('click', () => {
+  sendCamera('reset', '').then(() => setTimeout(loadCameraSettings, 1500));
 });
 
 // ── Sidebar / tabs ────────────────────────────────
@@ -1007,18 +1004,15 @@ document.querySelectorAll('[data-cmd]').forEach(btn => {
 const keyMap = {
   ArrowLeft:'pan_left', ArrowRight:'pan_right', ArrowUp:'tilt_up', ArrowDown:'tilt_down',
   KeyW:'tilt_up', KeyS:'tilt_down', KeyA:'pan_left', KeyD:'pan_right',
-  Space:'stop', KeyH:'preset_home',
+  Equal:'zoom_in', Minus:'zoom_out', Space:'stop', KeyH:'preset_home',
 };
 const keyCharMap = { '+':'zoom_in', '=':'zoom_in', '-':'zoom_out' };
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.repeat) return;
-  const cmd = keyMap[e.code] || keyCharMap[e.key];
+  const cmd = keyMap[e.code];
   if (cmd) { e.preventDefault(); startPTZ(cmd); }
 });
-document.addEventListener('keyup', e => {
-  const cmd = keyMap[e.code] || keyCharMap[e.key];
-  if (cmd) stopPTZ(cmd);
-});
+document.addEventListener('keyup', e => { const cmd = keyMap[e.code]; if (cmd) stopPTZ(cmd); });
 
 // Scroll wheel on the video panel zooms in/out.
 document.getElementById('video-panel').addEventListener('wheel', e => {
@@ -1057,6 +1051,11 @@ setInterval(() => {
     if (behind > MAX_LAT) videoEl.currentTime = edge - TARGET_LAT;
   } catch (_) {}
 }, 200);
+
+
+document.addEventListener('keydown', e => {
+  document.getElementById('key-debug').textContent = `key="${e.key}"  code=${e.code}`;
+}, true);
 
 // ── Init ──────────────────────────────────────────
 addLog('Operator interface loaded', 'ok');

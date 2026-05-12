@@ -1,36 +1,11 @@
 """
-CraneCam server — Flask application running on the Jetson Orin Nano.
+CraneCam server — single process replacing ptz_server.py + zoom_proxy.py.
+Serves operator.html and proxies all camera / PTZ / zoom commands.
 
-Architecture:
-    Browser (operator.html) ──HTTP GET──▶ Flask :5000 (this file)
-                                                │
-                                   ┌────────────┴────────────┐
-                                   ▼                         ▼
-                          Camera 192.168.2.68         Arduino /dev/ttyACM0
-                          ISAPI over HTTP Digest       USB serial 9600 baud
-                          (image settings + zoom)      (pan/tilt servo angles)
-
-    Video stream (WebRTC) is served separately by MediaMTX on port 8889.
-    MediaMTX pulls RTSP from the camera directly — this server is not involved.
-
-Routes:
-    GET /          → serve operator.html
-    GET /ptz       → pan, tilt, zoom, stop, preset_home
-    GET /ptz/delta → relative pan/tilt from a video click
-    GET /camera    → read/write Hikvision ISAPI image settings
-
-Serial protocol (Arduino):
-    P<angle>  — set pan  servo, 0–180°, centre = 90
-    T<angle>  — set tilt servo, 0–180°, centre = 90
-
-ISAPI notes:
-    - All reads are GET, all writes are PUT with an XML body.
-    - HTTP Digest auth is required on every request.
-    - Some settings live in dedicated sub-endpoints (HLC, WDR, noiseReduce,
-      Dehaze) rather than the main /Image/channels/1 endpoint.
-    - BLC is broken on this firmware — removed from the UI.
-    - XML declarations must be stripped from PUT bodies; some firmware silently
-      rejects requests that include them.
+Hardware:
+    Jetson Orin Nano  192.168.2.1
+    Camera            192.168.2.68  (ISAPI over HTTP Digest)
+    Arduino Uno       /dev/ttyACM0  (USB serial)
 
 Usage:
     pip install flask requests pyserial --break-system-packages
@@ -53,49 +28,42 @@ SERIAL_PORT = '/dev/ttyACM0'
 BAUD_RATE   = 9600
 FLASK_PORT  = 5000
 
-# ── ISAPI endpoint URLs ───────────────────────────────────────────────────────
-IMG_URL         = f'http://{CAMERA_IP}/ISAPI/Image/channels/1'
-IMG_COLOR_URL   = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/color'
-IMG_IRCUT_URL   = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/IrcutFilter'
-IMG_DEHAZE_URL  = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/dehaze'
-IMG_FLIP_URL    = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/ImageFlip'
-IMG_FOCUS_URL   = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/focusConfiguration'
-IMG_WB_URL      = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/WhiteBalance'
-IMG_NOISE_URL   = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/noiseReduce'
-IMG_WDR_URL     = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/WDR'
-IMG_HLC_URL     = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/HLC'
-IMG_RESTORE_URL = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/restore'
-PTZ_URL         = f'http://{CAMERA_IP}/ISAPI/PTZCtrl/channels/1/absolute'
-AUTH            = HTTPDigestAuth(CAMERA_USER, CAMERA_PASS)
-HEADERS         = {'Content-Type': 'application/xml'}
+IMG_URL          = f'http://{CAMERA_IP}/ISAPI/Image/channels/1'
+IMG_COLOR_URL    = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/color'
+IMG_IRCUT_URL    = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/IrcutFilter'
+IMG_DEHAZE_URL   = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/dehaze'
+IMG_FLIP_URL     = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/ImageFlip'
+IMG_FOCUS_URL    = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/focusConfiguration'
+IMG_WB_URL       = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/WhiteBalance'
+IMG_NOISE_URL    = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/noiseReduce'
+IMG_WDR_URL      = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/WDR'
+IMG_HLC_URL      = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/HLC'
+IMG_RESTORE_URL  = f'http://{CAMERA_IP}/ISAPI/Image/channels/1/restore'
+PTZ_URL          = f'http://{CAMERA_IP}/ISAPI/PTZCtrl/channels/1/absolute'
+AUTH             = HTTPDigestAuth(CAMERA_USER, CAMERA_PASS)
+HEADERS          = {'Content-Type': 'application/xml'}
 
-# ── Zoom state ────────────────────────────────────────────────────────────────
-# Tracked in-memory as an integer 1–33 (optical zoom factor).
-# ISAPI absoluteZoom = zoom * 10  (e.g. 1x → 10, 10x → 100, 33x → 330).
-# Resets to 1x on server restart; init_camera() syncs the camera to match.
-ZOOM_MIN, ZOOM_MAX, ZOOM_STEP = 1, 33, 1
+ZOOM_MIN, ZOOM_MAX, ZOOM_STEP = 1, 33, 1   # 1x … 33x, step=1x
 current_zoom = 1
-
-# ── Pan/tilt state ────────────────────────────────────────────────────────────
-# Degrees, 0–180, centre = 90. Sent to Arduino as "P<n>\n" / "T<n>\n".
-pan_angle  = 90
-tilt_angle = 90
+pan_angle    = 90
+tilt_angle   = 90
 
 app = Flask(__name__)
 
 
+# ── Startup init ──────────────────────────────────────────────────────────────
+
 def init_camera():
-    """Sync camera to server's initial state on startup."""
-    # Reset zoom to 1x so current_zoom matches the camera's actual position
+    """Reset zoom to 1x and set 50Hz power-line frequency (EU/marine default)."""
     try:
         xml = ('<PTZData><AbsoluteHigh><elevation>0</elevation><azimuth>0</azimuth>'
                '<absoluteZoom>10</absoluteZoom></AbsoluteHigh></PTZData>')
         r = requests.put(PTZ_URL, auth=AUTH, data=xml, headers=HEADERS, timeout=5)
-        print(f'[init] Zoom reset to 1x → {r.status_code}')
+        print(f'[init] zoom reset to 1x → {r.status_code}')
     except Exception as e:
         print(f'[init] WARNING zoom reset failed: {e}')
 
-    # 50Hz power-line frequency prevents flicker under fluorescent/marine lighting
+    # Power-line frequency: 50Hz (EU/marine default)
     try:
         current = requests.get(IMG_URL, auth=AUTH, timeout=5).text
         if '<powerLineFrequency>' in current or '<powerLineFrequency/>' in current:
@@ -109,10 +77,11 @@ def init_camera():
         print(f'[init] WARNING powerLineFrequency failed: {e}')
 
 
-# ── Serial ────────────────────────────────────────────────────────────────────
+# ── Serial (Arduino servo controller) ────────────────────────────────────────
+
 try:
     ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-    time.sleep(2)  # wait for Arduino reset after DTR toggle
+    time.sleep(2)
     print(f'[serial] Connected on {SERIAL_PORT}')
 except Exception as e:
     print(f'[serial] WARNING: {e}')
@@ -120,6 +89,7 @@ except Exception as e:
 
 
 def send_serial(cmd):
+    """Send a command string to the Arduino. Fails silently if not connected."""
     if ser and ser.is_open:
         ser.write((cmd + '\n').encode())
         ser.flush()
@@ -128,43 +98,43 @@ def send_serial(cmd):
         print(f'[serial] (offline) would send: {cmd}')
 
 
-# ── ISAPI helpers ─────────────────────────────────────────────────────────────
+# ── Camera helpers ────────────────────────────────────────────────────────────
 def cam_get(url):
+    """GET an ISAPI endpoint and return the response body as text."""
     r = requests.get(url, auth=AUTH, timeout=5)
-    print(f'[cam_get] GET {url} → HTTP {r.status_code}', file=sys.stderr)
+    print(f'[cam_get] {url} → {r.status_code}', file=sys.stderr)
     if r.status_code != 200:
-        print(f'[cam_get] ERROR BODY: {r.text}', file=sys.stderr)
+        print(f'[cam_get] error body: {r.text}', file=sys.stderr)
     return r.text
 
 
 def cam_put(url, xml):
-    # Strip XML declaration — some firmware silently rejects bodies that include it
+    # Strip XML declaration — some cameras silently reject PUT bodies that include it
     xml = re.sub(r'<\?xml[^?]*\?>\s*', '', xml).strip()
-    print(f'[cam_put] SENDING TO {url}:', file=sys.stderr)
-    print(f'[cam_put] BODY: {xml}', file=sys.stderr)
+    print(f'[cam_put] {url}', file=sys.stderr)
+    print(f'[cam_put] body: {xml}', file=sys.stderr)
     r = requests.put(url, auth=AUTH, data=xml, headers=HEADERS, timeout=5)
     ok = '<statusCode>1</statusCode>' in r.text
-    print(f'[cam_put] RESPONSE {r.status_code}: {r.text}', file=sys.stderr)
+    print(f'[cam_put] response {r.status_code}: {r.text}', file=sys.stderr)
     return ok, r.text
 
 
 def img_replace(xml_str, tag, new_val):
-    """Replace a leaf tag value. Handles both <tag>val</tag> and self-closing <tag/>."""
+    """Replace a single leaf tag value in an XML string.
+    Handles both <tag>value</tag> and self-closing <tag/> forms."""
     replacement = f'<{tag}>{new_val}</{tag}>'
     # Try full form first: <tag>...</tag>
-    result = re.sub(rf'<{re.escape(tag)}>[^<]*</{re.escape(tag)}>', replacement, xml_str)
+    result = re.sub(
+        rf'<{re.escape(tag)}>[^<]*</{re.escape(tag)}>',
+        replacement, xml_str
+    )
     if result != xml_str:
         return result
-    # Fall back to self-closing form: <tag/> or <tag />
     return re.sub(rf'<{re.escape(tag)}\s*/>', replacement, xml_str)
 
 
 def img_replace_in(xml_str, parent, tag, new_val):
-    """Replace a leaf tag within a named parent element.
-
-    Handles self-closing parents and missing children by injecting the tag.
-    Used for nested settings like GeneralMode/generalLevel inside noiseReduce.
-    """
+    """Replace a leaf tag within a parent element. Handles self-closing parent/child."""
     replacement_tag = f'<{tag}>{new_val}</{tag}>'
     tag_pattern = re.compile(rf'<{re.escape(tag)}(?:\s*/>|>[^<]*</{re.escape(tag)}>)')
 
@@ -172,7 +142,6 @@ def img_replace_in(xml_str, parent, tag, new_val):
         block = m.group(0)
         if tag_pattern.search(block):
             return img_replace(block, tag, new_val)
-        # Tag missing inside parent — inject before closing tag
         return block.replace(f'</{parent}>', f'{replacement_tag}</{parent}>')
 
     result = re.sub(
@@ -181,8 +150,7 @@ def img_replace_in(xml_str, parent, tag, new_val):
     )
     if result != xml_str:
         return result
-
-    # Parent is self-closing <parent/> — expand it and inject child
+    # Parent is self-closing — expand it and inject the child tag
     return re.sub(
         rf'<{re.escape(parent)}\s*/>',
         f'<{parent}>{replacement_tag}</{parent}>',
@@ -190,12 +158,24 @@ def img_replace_in(xml_str, parent, tag, new_val):
     )
 
 
+# The ZCM2133 requires a full GET-modify-PUT cycle for most image settings:
+# submitting only the changed field returns HTTP 400. These helpers fetch the
+# current document, apply a transform function, and PUT the full result back.
+
 # Convenience wrappers: GET the XML, apply a transform function, PUT it back.
 def img_modify(fn):
-    return cam_put(IMG_URL, fn(cam_get(IMG_URL)))
+    """GET current main image XML, apply fn, PUT back."""
+    current = cam_get(IMG_URL)
+    modified = fn(current)
+    return cam_put(IMG_URL, modified)
+
 
 def focus_modify(fn):
-    return cam_put(IMG_FOCUS_URL, fn(cam_get(IMG_FOCUS_URL)))
+    """GET current focus XML, apply fn, PUT back."""
+    current = cam_get(IMG_FOCUS_URL)
+    modified = fn(current)
+    return cam_put(IMG_FOCUS_URL, modified)
+
 
 def ircut_modify(fn):
     current = cam_get(IMG_IRCUT_URL)
@@ -207,28 +187,42 @@ def ircut_modify(fn):
     return cam_put(IMG_IRCUT_URL, modified)
 
 def noise_modify(fn):
-    return cam_put(IMG_NOISE_URL, fn(cam_get(IMG_NOISE_URL)))
+    """GET current noiseReduce XML, apply fn, PUT back."""
+    current = cam_get(IMG_NOISE_URL)
+    modified = fn(current)
+    return cam_put(IMG_NOISE_URL, modified)
+
 
 def wdr_modify(fn):
-    return cam_put(IMG_WDR_URL, fn(cam_get(IMG_WDR_URL)))
+    """GET current WDR XML, apply fn, PUT back."""
+    current = cam_get(IMG_WDR_URL)
+    modified = fn(current)
+    return cam_put(IMG_WDR_URL, modified)
+
 
 def hlc_modify(fn):
-    return cam_put(IMG_HLC_URL, fn(cam_get(IMG_HLC_URL)))
+    """GET current HLC XML, apply fn, PUT back."""
+    current = cam_get(IMG_HLC_URL)
+    modified = fn(current)
+    return cam_put(IMG_HLC_URL, modified)
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
-    return send_from_directory('.', 'operator.html')
+    res = send_from_directory('.', 'operator.html')
+    res.headers['Cache-Control'] = 'no-store'
+    return res
 
 
 @app.route('/ptz')
 def ptz():
+    """Pan/tilt via Arduino serial; zoom via ISAPI PTZ absolute endpoint."""
     global pan_angle, tilt_angle
     cmd   = request.args.get('cmd', '')
     speed = int(request.args.get('speed', 50))
-    inc   = max(1, speed // 10)   # speed 10–100 → increment 1–10 degrees per step
+    inc   = max(1, speed // 10)
 
     if   cmd == 'pan_right':   pan_angle  = min(180, pan_angle  + inc); send_serial(f'P{pan_angle}')
     elif cmd == 'pan_left':    pan_angle  = max(0,   pan_angle  - inc); send_serial(f'P{pan_angle}')
@@ -246,7 +240,6 @@ def ptz():
 
 @app.route('/ptz/delta')
 def ptz_delta():
-    """Relative pan/tilt from a video click. Deltas are in degrees."""
     global pan_angle, tilt_angle
     try:
         pd = float(request.args.get('pan',  0))
@@ -260,10 +253,13 @@ def ptz_delta():
 
 
 def _zoom(cmd):
+    """Send an absolute zoom position to the camera via ISAPI.
+    ISAPI absoluteZoom uses a scale of 10 per optical zoom step (1x = 10, 33x = 330)."""
     global current_zoom
     if   cmd == 'in':  current_zoom = min(ZOOM_MAX, current_zoom + ZOOM_STEP)
     elif cmd == 'out': current_zoom = max(ZOOM_MIN, current_zoom - ZOOM_STEP)
-    abs_zoom = current_zoom * 10  # ISAPI scale: 10 = 1x optical, 330 = 33x
+    # ISAPI absoluteZoom: 10 = 1x optical, so multiply by 10
+    abs_zoom = current_zoom * 10
     xml = (f'<PTZData><AbsoluteHigh><elevation>0</elevation><azimuth>0</azimuth>'
            f'<absoluteZoom>{abs_zoom}</absoluteZoom></AbsoluteHigh></PTZData>')
     ok, _ = cam_put(PTZ_URL, xml)
@@ -273,11 +269,12 @@ def _zoom(cmd):
 
 @app.route('/camera')
 def camera():
+    """Proxy for all ISAPI image settings. Accepts GET (read) and write commands."""
     cmd   = request.args.get('cmd',   '')
     value = request.args.get('value', '')
     level = request.args.get('level', '')
 
-    # ── Read ──────────────────────────────────────────────────────────────────
+    # ── Read endpoints ────────────────────────────────────────────────────────
     if cmd == 'get_settings':
         return Response(cam_get(IMG_URL),        content_type='application/xml')
     elif cmd == 'get_focus':
@@ -297,7 +294,7 @@ def camera():
     elif cmd == 'get_wdr':
         return Response(cam_get(IMG_WDR_URL),    content_type='application/xml')
 
-    # ── Image Adjustment ──────────────────────────────────────────────────────
+    # ── Image adjustment ──────────────────────────────────────────────────────
     elif cmd == 'brightness':
         ok, r = cam_put(IMG_COLOR_URL, img_replace(cam_get(IMG_COLOR_URL), 'brightnessLevel', value))
     elif cmd == 'contrast':
@@ -313,29 +310,28 @@ def camera():
     elif cmd == 'focus_min_dist':
         ok, r = focus_modify(lambda x: img_replace(x, 'focusLimited', value))
     elif cmd == 'focus_trigger':
-        # One-key focus: switch to SEMIAUTOMATIC to lock onto subject, then back to AUTO
         focus_modify(lambda x: img_replace(x, 'focusStyle', 'SEMIAUTOMATIC'))
         time.sleep(0.3)
         ok, r = focus_modify(lambda x: img_replace(x, 'focusStyle', 'AUTO'))
 
-    # ── White Balance ─────────────────────────────────────────────────────────
+    # ── White balance ─────────────────────────────────────────────────────────
     elif cmd == 'wb':
         ok, r = cam_put(IMG_WB_URL, img_replace(cam_get(IMG_WB_URL), 'WhiteBalanceStyle', value))
 
-    # ── Dynamic Range (HLC + WDR; BLC removed — ISAPI broken on this firmware) ─
+    # ── Backlight (HLC + WDR — BLC removed: ISAPI broken on this firmware) ────
     elif cmd == 'hlc':
         ok, r = hlc_modify(lambda x: img_replace(x, 'enabled', value))
     elif cmd == 'hlc_level':
         ok, r = hlc_modify(lambda x: img_replace(x, 'HLCLevel', value))
     elif cmd == 'super_wdr':
-        # mode values: open | close
+        # Use dedicated /WDR endpoint; mode values: open | close | auto
         ok, r = wdr_modify(lambda x: img_replace(x, 'mode', value))
     elif cmd == 'wdr_level':
         ok, r = wdr_modify(lambda x: img_replace(x, 'WDRLevel', value))
 
-    # ── Image Enhancement ─────────────────────────────────────────────────────
+    # ── Image enhancement ─────────────────────────────────────────────────────
     elif cmd == 'noise_mode':
-        # mode: close | general | advanced (3DNR)
+        # Dedicated /noiseReduce endpoint; mode: close | general | advanced
         ok, r = noise_modify(lambda x: img_replace(x, 'mode', value))
     elif cmd == 'noise':
         ok, r = noise_modify(lambda x: img_replace_in(x, 'GeneralMode', 'generalLevel', value))
@@ -350,14 +346,14 @@ def camera():
     elif cmd == 'dehaze_level':
         ok, r = cam_put(IMG_DEHAZE_URL, img_replace_in(cam_get(IMG_DEHAZE_URL), 'Dehaze', 'DehazeLevel', value))
 
-    # ── Day/Night Switch ──────────────────────────────────────────────────────
-    # IrcutFilterType controls the IR cut filter: day (colour), night (B/W), auto
+# ── Day/Night Switch ──────────────────────────────────────────────────────
     elif cmd == 'daynight':
+        # IrcutFilterType controls the IR cut filter mode: day (color), night (B/W), or auto.
         ok, r = ircut_modify(lambda x: img_replace(x, 'IrcutFilterType', value))
 
-    # ── Mirror / Flip ─────────────────────────────────────────────────────────
+    # ── General ───────────────────────────────────────────────────────────────
     elif cmd == 'flip':
-        # When turning flip OFF, remove the style tag entirely to avoid stale values
+        # ImageFlipStyle values (ISAPI spec): LEFTRIGHT | UPDOWN | CENTER | AUTO
         current = cam_get(IMG_FLIP_URL)
         if value == 'OFF':
             modified = img_replace(current, 'enabled', 'false')
