@@ -29,5 +29,5 @@ srt: no
 
 paths:
   crane:
-    source: publisher
+    source: rtsp://admin:sebandtah2792@192.168.2.68:554/Streaming/Channels/101
     sourceOnDemand: no

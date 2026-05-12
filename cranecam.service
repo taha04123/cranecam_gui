@@ -1,0 +1,14 @@
+[Unit]
+Description=CraneCam Flask server
+After=network-online.target mediamtx.service
+Wants=network-online.target
+
+[Service]
+User=jetson
+WorkingDirectory=/home/jetson/cranecam_gui
+ExecStart=/usr/bin/python3 /home/jetson/cranecam_gui/server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

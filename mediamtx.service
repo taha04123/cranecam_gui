@@ -1,0 +1,14 @@
+[Unit]
+Description=MediaMTX streaming server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=jetson
+WorkingDirectory=/home/jetson/cranecam_gui
+ExecStart=/home/jetson/cranecam_gui/mediamtx /home/jetson/cranecam_gui/mediamtx.yml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

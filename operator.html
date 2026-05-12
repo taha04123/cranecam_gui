@@ -556,14 +556,27 @@
 </div>
 
 <script>
-// ── Config ──────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// CraneCam Operator — client-side JavaScript
+//
+// Architecture:
+//   Video:  WebRTC WHEP pull from MediaMTX (port 8889) — separate from Flask
+//   PTZ:    GET /ptz      → Flask → Arduino serial (pan/tilt) + ISAPI (zoom)
+//   Click:  GET /ptz/delta → Flask → relative pan/tilt from video click
+//   Camera: GET /camera   → Flask → Hikvision ISAPI (image settings read/write)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Config ────────────────────────────────────────
+// Read from the CONN tab inputs when the user clicks CONNECT.
 let MEDIAMTX_HOST = '';
 let STREAM_PATH   = 'crane';
 
-// ── State ────────────────────────────────────────
-let pc = null, streamActive = false, reconnectTimer = null;
+// ── State ─────────────────────────────────────────
+let pc             = null;   // RTCPeerConnection instance
+let streamActive   = false;  // true while ICE is connected/completed
+let reconnectTimer = null;   // setTimeout handle for auto-reconnect
 
-// ── Elements ─────────────────────────────────────
+// ── Element references ────────────────────────────
 const videoEl    = document.getElementById('stream');
 const overlay    = document.getElementById('overlay');
 const overlayMsg = document.getElementById('overlay-msg');
@@ -575,7 +588,8 @@ const latEl      = document.getElementById('lat-ms');
 const speedSlider= document.getElementById('speed');
 const logEntries = document.getElementById('log-entries');
 
-// ── Logging ──────────────────────────────────────
+// ── Logging ───────────────────────────────────────
+// Capped at 200 entries to prevent unbounded memory growth.
 function addLog(msg, type = 'info') {
   const now = new Date().toLocaleTimeString('en-GB', {hour12: false});
   const el = document.createElement('div');
@@ -592,7 +606,9 @@ function accToggle(head) {
   head.nextElementSibling.classList.toggle('open');
 }
 
-// ── Stream ────────────────────────────────────────
+// ── Stream state ──────────────────────────────────
+// Controls the overlay and the STREAM status pill in the top bar.
+// States: 'connecting' | 'live' | 'error'
 function setStream(state) {
   const m = {
     connecting: ['dot',    'CONNECTING', true,  'Connecting…'],
@@ -607,7 +623,10 @@ function setStream(state) {
   streamActive = state === 'live';
 }
 
-// ── WebRTC ───────────────────────────────────────
+// ── WebRTC / WHEP ─────────────────────────────────
+// WHEP (WebRTC-HTTP Egress Protocol): POST an SDP offer to MediaMTX at
+// http://<host>:8889/<path>/whep, receive an SDP answer, then let ICE
+// complete the peer connection. Auto-reconnects every 4s on failure.
 async function connect() {
   MEDIAMTX_HOST = document.getElementById('cfg-host').value.trim();
   STREAM_PATH   = document.getElementById('cfg-path').value.trim();
@@ -645,7 +664,12 @@ function scheduleReconnect() {
   reconnectTimer = setTimeout(connect, 4000);
 }
 
-// ── PTZ ──────────────────────────────────────────
+// ── PTZ ───────────────────────────────────────────
+// sendPTZ fires a single command to /ptz on the Flask server.
+// startPTZ fires immediately then repeats every 100ms while a key/button is held,
+// giving smooth continuous pan/tilt movement.
+// stopPTZ clears the repeat timer and sends 'stop' for movement commands only —
+// zoom commands set an absolute position so no stop is needed on key release.
 async function sendPTZ(cmd) {
   try {
     await fetch(`/ptz?cmd=${cmd}&speed=${speedSlider.value}`);
@@ -664,12 +688,14 @@ function startPTZ(cmd) {
 function stopPTZ(cmd) {
   if (!ptzTimer) return;
   clearInterval(ptzTimer); ptzTimer = null;
-  if (cmd !== 'stop' && cmd !== 'preset_home') sendPTZ('stop');
+  if (cmd !== 'stop' && cmd !== 'preset_home' && cmd !== 'zoom_in' && cmd !== 'zoom_out') sendPTZ('stop');
 }
 
 // ── Camera API ────────────────────────────────────
+// debounce prevents rapid slider dragging from flooding the camera with requests.
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
+// sendCamera proxies a command through Flask to the camera's ISAPI endpoints.
 async function sendCamera(cmd, value, level = '') {
   try {
     const res  = await fetch(`/camera?cmd=${cmd}&value=${encodeURIComponent(value)}&level=${level}`);
@@ -681,7 +707,7 @@ async function sendCamera(cmd, value, level = '') {
   } catch (e) { addLog(`CAM ${cmd} failed: ${e.message}`, 'err'); }
 }
 
-// ── Helpers ───────────────────────────────────────
+// ── UI helpers ────────────────────────────────────
 function setSlider(id, vid, val, def) {
   const v = (val !== null && val !== undefined && val !== '') ? parseFloat(val) : def;
   const sl = document.getElementById(id), vl = document.getElementById(vid);
@@ -696,15 +722,14 @@ function setCheck(id, on) {
   const el = document.getElementById(id);
   if (el) el.checked = on;
 }
+
+// ── Conditional row visibility ────────────────────
+// Each function shows/hides sub-controls that only apply when a parent setting is active.
 function updateNoiseLevel() {
   const v = document.getElementById('sel-noise-mode').value;
   document.getElementById('noise-level-row').style.display    = v === 'general'  ? 'flex' : 'none';
   document.getElementById('noise-spatial-row').style.display  = v === 'advanced' ? 'flex' : 'none';
   document.getElementById('noise-temporal-row').style.display = v === 'advanced' ? 'flex' : 'none';
-}
-function updateDayNight() {
-  const auto = document.getElementById('sel-daynight').value === 'auto';
-  document.getElementById('dn-sensitivity-row').style.display = auto ? 'flex' : 'none';
 }
 function updateWDR() {
   const on = document.getElementById('sel-super-wdr').value !== 'close';
@@ -719,11 +744,13 @@ function updateDefog() {
   document.getElementById('dehaze-level-row').style.display = v === 'auto' ? 'flex' : 'none';
 }
 
-// ── Load all settings ─────────────────────────────
+// ── Load settings from camera ─────────────────────
+// Fetches all camera XML endpoints in parallel, parses the responses,
+// and populates the UI controls. Called on stream connect and after reset.
 async function loadCameraSettings() {
   addLog('Loading camera settings…', 'info');
 
-  // Helper: parse XML text and get tag value within a parent
+  // xval: get a child tag value within a named parent element
   function xval(xmlDoc, parent, child) {
     const parents = xmlDoc.getElementsByTagName(parent);
     for (const p of parents) {
@@ -732,11 +759,11 @@ async function loadCameraSettings() {
     }
     return null;
   }
+  // xfirst: get the first occurrence of a tag anywhere in the document
   function xfirst(xmlDoc, tag) {
     return xmlDoc.getElementsByTagName(tag)[0]?.textContent ?? null;
   }
 
-  // Fetch all endpoints in parallel
   const [mainRes, focusRes, ircutRes, wbRes, dehRes, flipRes, noiseRes, wdrRes, hlcRes] = await Promise.allSettled([
     fetch('/camera?cmd=get_settings').then(r => r.text()),
     fetch('/camera?cmd=get_focus').then(r => r.text()),
@@ -763,7 +790,6 @@ async function loadCameraSettings() {
   const hlc   = parse(hlcRes);
 
   try {
-    // Image Adjustment
     if (main) {
       setSlider('sl-brightness', 'v-brightness', xval(main,'Color','brightnessLevel'), 50);
       setSlider('sl-contrast',   'v-contrast',   xval(main,'Color','contrastLevel'),   50);
@@ -771,19 +797,15 @@ async function loadCameraSettings() {
       setSlider('sl-sharpness',  'v-sharpness',  xval(main,'Sharpness','SharpnessLevel'), 50);
     }
 
-
-    // Focus — only focusStyle and focusLimited exist in this camera's XML
     if (focus) {
       setSelect('sel-focus',      xfirst(focus,'focusStyle'));
-      setSelect('sel-focus-dist', xfirst(focus,'focusLimited')); // cm: 300=3.0m
+      setSelect('sel-focus-dist', xfirst(focus,'focusLimited')); // cm: 300 = 3.0m
     }
 
-    // White Balance — mode only (manual gains removed for marine UI)
     if (wb) {
       setSelect('sel-wb', xfirst(wb,'WhiteBalanceStyle')?.toLowerCase());
     }
 
-    // Backlight — HLC + WDR (BLC removed: ISAPI broken on this firmware)
     if (hlc) {
       setCheck('chk-hlc', xfirst(hlc,'enabled') === 'true');
       setSlider('sl-hlc-level','v-hlc-level', xfirst(hlc,'HLCLevel'), 50);
@@ -792,30 +814,25 @@ async function loadCameraSettings() {
       setSelect('sel-super-wdr', xfirst(wdr,'mode'));
       setSlider('sl-wdr-level', 'v-wdr-level', xfirst(wdr,'WDRLevel'), 5);
     }
-    updateDayNight(); updateWDR(); updateHLC();
+    updateWDR(); updateHLC();
 
-    // Image Enhancement — noise from dedicated /noiseReduce endpoint
-    // mode values: close | general | advanced
     if (noise) {
       const nm = xfirst(noise,'mode');
       if (nm) { setSelect('sel-noise-mode', nm); updateNoiseLevel(); }
-      setSlider('sl-noise','v-noise', xval(noise,'GeneralMode','generalLevel'), 50);
-      setSlider('sl-noise-spatial', 'v-noise-spatial', xval(noise,'AdvancedMode','FrameNoiseReduceLevel'), 50);
-      setSlider('sl-noise-temporal','v-noise-temporal', xval(noise,'AdvancedMode','InterFrameNoiseReduceLevel'), 50);
+      setSlider('sl-noise',          'v-noise',          xval(noise,'GeneralMode','generalLevel'), 50);
+      setSlider('sl-noise-spatial',  'v-noise-spatial',  xval(noise,'AdvancedMode','FrameNoiseReduceLevel'), 50);
+      setSlider('sl-noise-temporal', 'v-noise-temporal', xval(noise,'AdvancedMode','InterFrameNoiseReduceLevel'), 50);
     }
     if (deh) {
-      setSelect('sel-defog', xval(deh,'Dehaze','DehazeMode'));
-      setSlider('sl-dehaze-level','v-dehaze-level', xval(deh,'Dehaze','DehazeLevel'), 80);
+      setSelect('sel-defog',         xval(deh,'Dehaze','DehazeMode'));
+      setSlider('sl-dehaze-level',   'v-dehaze-level', xval(deh,'Dehaze','DehazeLevel'), 80);
     }
     updateDefog();
 
-    // Day/Night — sensitivity: dayToNightFilterLevel values: low | normal | high
     if (ircut) {
-      setSelect('sel-daynight',        xfirst(ircut,'IrcutFilterType'));
-      setSlider('sl-dn-sensitivity', 'v-dn-sensitivity', xfirst(ircut,'dayToNightFilterLevel'), 4);
+      setSelect('sel-daynight', xfirst(ircut,'IrcutFilterType'));
     }
 
-    // Flip/Mirror
     if (flip) {
       const en = xfirst(flip,'enabled');
       const st = xfirst(flip,'ImageFlipStyle');
@@ -829,6 +846,8 @@ async function loadCameraSettings() {
 }
 
 // ── Slider wiring ─────────────────────────────────
+// [slider-id, display-id, camera-command]
+// Debounced 300ms — prevents flooding the camera while the user drags.
 [
   ['sl-brightness',     'v-brightness',     'brightness'],
   ['sl-contrast',       'v-contrast',       'contrast'],
@@ -840,7 +859,6 @@ async function loadCameraSettings() {
   ['sl-noise-temporal', 'v-noise-temporal', 'noise_temporal'],
   ['sl-dehaze-level',   'v-dehaze-level',   'dehaze_level'],
   ['sl-wdr-level',      'v-wdr-level',      'wdr_level'],
-  ['sl-dn-sensitivity', 'v-dn-sensitivity', 'daynight_sensitivity'],
 ].forEach(([slId, vId, cmd]) => {
   const sl = document.getElementById(slId);
   const vl = document.getElementById(vId);
@@ -860,16 +878,13 @@ async function loadCameraSettings() {
   el.addEventListener('change', function () { sendCamera(cmd, this.value); });
 });
 
-// Day/Night — send + toggle sensitivity row
 document.getElementById('sel-daynight').addEventListener('change', function () {
   sendCamera('daynight', this.value);
-  updateDayNight();
 });
 
-// WDR mode — send + toggle level row + mutex with HLC
+// WDR and HLC are mutually exclusive — enabling one must disable the other.
 document.getElementById('sel-super-wdr').addEventListener('change', async function () {
   if (this.value !== 'close') {
-    // Mutex: WDR and HLC can't be on together
     document.getElementById('chk-hlc').checked = false;
     await sendCamera('hlc', 'false');
     updateHLC();
@@ -878,27 +893,23 @@ document.getElementById('sel-super-wdr').addEventListener('change', async functi
   updateWDR();
 });
 
-// WB mode — send only (manual gains removed)
 document.getElementById('sel-wb').addEventListener('change', function () {
   sendCamera('wb', this.value);
 });
 
-// Noise mode — also toggles level row visibility
 document.getElementById('sel-noise-mode').addEventListener('change', function () {
   updateNoiseLevel();
   sendCamera('noise_mode', this.value);
 });
 
-// Defog — sends mode and toggles dehaze level row visibility
 document.getElementById('sel-defog').addEventListener('change', function () {
   sendCamera('dehaze', this.value);
   updateDefog();
 });
 
-// ── Toggle (checkbox) wiring ──────────────────────
+// ── Toggle wiring ─────────────────────────────────
 document.getElementById('chk-hlc').addEventListener('change', async function () {
   if (this.checked) {
-    // Mutex: HLC and WDR can't be on together
     document.getElementById('sel-super-wdr').value = 'close';
     await sendCamera('super_wdr', 'close');
     updateWDR();
@@ -910,8 +921,55 @@ document.getElementById('chk-hlc').addEventListener('change', async function () 
 // ── Button wiring ─────────────────────────────────
 document.getElementById('btn-focus-trigger').addEventListener('click', () => sendCamera('focus_trigger', ''));
 document.getElementById('btn-cam-refresh')  .addEventListener('click', loadCameraSettings);
-document.getElementById('btn-cam-reset').addEventListener('click', () => {
-  sendCamera('reset', '').then(() => setTimeout(loadCameraSettings, 1500));
+
+// Reset: explicitly send every setting to its default value and update the UI.
+// More reliable than the camera's restore endpoint, which is broken on some firmware.
+document.getElementById('btn-cam-reset').addEventListener('click', async () => {
+  if (!confirm('Reset all image settings to factory defaults?')) return;
+
+  // Update UI immediately so it reflects the new values right away
+  setSlider('sl-brightness',     'v-brightness',     50,  50);
+  setSlider('sl-contrast',       'v-contrast',       50,  50);
+  setSlider('sl-saturation',     'v-saturation',     50,  50);
+  setSlider('sl-sharpness',      'v-sharpness',      50,  50);
+  setSelect('sel-focus',         'AUTO');
+  setSelect('sel-focus-dist',    '300');
+  setSelect('sel-wb',            'auto1');
+  setCheck ('chk-hlc',           false);
+  setSlider('sl-hlc-level',      'v-hlc-level',      50,  50);
+  setSelect('sel-super-wdr',     'close');
+  setSlider('sl-wdr-level',      'v-wdr-level',      5,   5);
+  setSelect('sel-noise-mode',    'general');
+  setSlider('sl-noise',          'v-noise',          50,  50);
+  setSlider('sl-noise-spatial',  'v-noise-spatial',  50,  50);
+  setSlider('sl-noise-temporal', 'v-noise-temporal', 50,  50);
+  setSelect('sel-defog',         'close');
+  setSlider('sl-dehaze-level',   'v-dehaze-level',   80,  80);
+  setSelect('sel-daynight',      'auto');
+  setSelect('sel-flip',          'OFF');
+  updateWDR(); updateHLC(); updateNoiseLevel(); updateDefog();
+
+  // Send all defaults to the camera in parallel
+  await Promise.all([
+    sendCamera('brightness',   '50'),
+    sendCamera('contrast',     '50'),
+    sendCamera('saturation',   '50'),
+    sendCamera('sharpness',    '50'),
+    sendCamera('focus',        'AUTO'),
+    sendCamera('focus_min_dist','300'),
+    sendCamera('wb',           'auto1'),
+    sendCamera('hlc',          'false'),
+    sendCamera('hlc_level',    '50'),
+    sendCamera('super_wdr',    'close'),
+    sendCamera('wdr_level',    '5'),
+    sendCamera('noise_mode',   'general'),
+    sendCamera('noise',        '50'),
+    sendCamera('dehaze',       'close'),
+    sendCamera('daynight',     'auto'),
+    sendCamera('flip',         'OFF'),
+  ]);
+
+  addLog('Reset to defaults complete', 'ok');
 });
 
 // ── Sidebar / tabs ────────────────────────────────
@@ -927,11 +985,13 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-// ── PTZ keyboard / scroll / click ─────────────────
+// ── Keyboard / scroll / click controls ────────────
 document.getElementById('btn-connect').addEventListener('click', connect);
 speedSlider.addEventListener('input', () => {
   document.getElementById('speed-val').textContent = speedSlider.value;
 });
+
+// data-cmd buttons hold to repeat (mousedown starts, mouseup/leave stops)
 document.querySelectorAll('[data-cmd]').forEach(btn => {
   const cmd = btn.dataset.cmd;
   btn.addEventListener('mousedown',  () => startPTZ(cmd));
@@ -940,22 +1000,33 @@ document.querySelectorAll('[data-cmd]').forEach(btn => {
   btn.addEventListener('touchstart', e => { e.preventDefault(); startPTZ(cmd); }, { passive: false });
   btn.addEventListener('touchend',   () => stopPTZ(cmd));
 });
+
+// keyMap uses e.code (physical key position) — consistent across all layouts.
+// keyCharMap uses e.key (character produced) for zoom, so +/- work correctly
+// on Norwegian keyboards where + sits on a different physical key than US layout.
 const keyMap = {
   ArrowLeft:'pan_left', ArrowRight:'pan_right', ArrowUp:'tilt_up', ArrowDown:'tilt_down',
   KeyW:'tilt_up', KeyS:'tilt_down', KeyA:'pan_left', KeyD:'pan_right',
-  Equal:'zoom_in', Minus:'zoom_out', Space:'stop', KeyH:'preset_home',
+  Space:'stop', KeyH:'preset_home',
 };
+const keyCharMap = { '+':'zoom_in', '=':'zoom_in', '-':'zoom_out' };
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.repeat) return;
-  const cmd = keyMap[e.code];
+  const cmd = keyMap[e.code] || keyCharMap[e.key];
   if (cmd) { e.preventDefault(); startPTZ(cmd); }
 });
-document.addEventListener('keyup', e => { const cmd = keyMap[e.code]; if (cmd) stopPTZ(cmd); });
+document.addEventListener('keyup', e => {
+  const cmd = keyMap[e.code] || keyCharMap[e.key];
+  if (cmd) stopPTZ(cmd);
+});
 
+// Scroll wheel on the video panel zooms in/out.
 document.getElementById('video-panel').addEventListener('wheel', e => {
   e.preventDefault(); sendPTZ(e.deltaY < 0 ? 'zoom_in' : 'zoom_out');
 }, { passive: false });
 
+// Click on the video panel aims the camera at the clicked point.
+// Converts pixel offset from centre to pan/tilt delta (±45°).
 videoEl.addEventListener('click', async e => {
   if (!streamActive) return;
   const rect = videoEl.getBoundingClientRect();
@@ -968,7 +1039,10 @@ videoEl.addEventListener('click', async e => {
   } catch (_) {}
 });
 
-// ── Live edge ─────────────────────────────────────
+// ── Live edge control ─────────────────────────────
+// Polls the video buffer every 200ms. If the player drifts more than 500ms
+// behind the live edge, it snaps forward to 150ms behind to recover latency.
+// The current lag is shown in the top bar, colour-coded green/amber/red.
 const TARGET_LAT = 0.15, MAX_LAT = 0.5;
 setInterval(() => {
   if (!streamActive || videoEl.readyState < 2 || !videoEl.buffered.length) return;
@@ -984,7 +1058,7 @@ setInterval(() => {
   } catch (_) {}
 }, 200);
 
-// ── Start ─────────────────────────────────────────
+// ── Init ──────────────────────────────────────────
 addLog('Operator interface loaded', 'ok');
 loadCameraSettings();
 connect();
